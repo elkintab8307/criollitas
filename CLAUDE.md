@@ -1,0 +1,573 @@
+# CLAUDE.md — Criollitas OS
+
+Este archivo es la fuente única de verdad para Claude Code en este repositorio. Léelo completo antes de iniciar cualquier tarea y consúltalo antes de proponer cambios estructurales. Si algo del código diverge de lo aquí descrito, gana este documento y se debe abrir una tarea de reconciliación.
+
+---
+
+## 1. Contexto de negocio
+
+**Cliente:** Criollitas — Arepas Rellenas, Sabores de Tradición.
+**Sede inicial:** Armenia, Quindío, Colombia.
+**Canales de operación:** consumo en mesa (5 mesas), domicilios, para llevar.
+**Redes:** @criollitas_armenia · WhatsApp/tel. 321 212 7100.
+
+El sistema es un **POS interno de comandas y caja** —no facturación electrónica DIAN—, con impresión de tirilla en impresora térmica al momento del cobro. El objetivo es que Vendedora, Cajera y Administrador trabajen sobre la misma base de datos en tiempo real, y que la cocina reciba los pedidos en una pantalla (KDS) sin papel intermedio.
+
+El modelo de datos se diseña **multi-sede desde el día 1**, aunque la operación arranque con una sola sede. Todas las tablas relevantes llevan `sede_id` y las políticas RLS lo respetan.
+
+---
+
+## 2. Alcance funcional
+
+### 2.1 Roles y responsabilidades
+
+| Rol | Puede hacer | No puede |
+|---|---|---|
+| **Administrador** | CRUD total: usuarios, sedes, mesas, categorías, productos, modificadores, precios, promociones. Ver todos los reportes, cierres de caja históricos, auditoría. Configurar impresora, métodos de pago, parámetros de sede. | — |
+| **Cajera** | Ver todos los pedidos activos y su estado. Cobrar (registrar método de pago, imprimir tirilla, cerrar pedido). Abrir y cerrar turno de caja con conteo de efectivo. Ver reporte de su turno. | Editar menú, ver reportes históricos de otros turnos, tomar pedidos. |
+| **Vendedora** | Seleccionar mesa u origen (mesa / domicilio / para llevar), armar pedido desde el menú, aplicar modificadores/notas, enviar a cocina, editar pedido mientras esté en estado `abierto`. | Cobrar, ver reportes, editar menú, editar precios. |
+| **Cocina** *(vista pública sin login o con PIN mínimo)* | Ver KDS en tiempo real, marcar ítems como `en_preparacion` → `listo`. | Todo lo demás. |
+
+### 2.2 Estados de un pedido
+
+```
+abierto → enviado_cocina → en_preparacion → listo → entregado → cobrado → cerrado
+                                                                       ↘ anulado
+```
+
+Un pedido anulado exige motivo y queda en auditoría. Solo Administrador anula pedidos ya cobrados (reversión con nota).
+
+### 2.3 Métodos de pago soportados
+
+Efectivo, Nequi, Daviplata, Bancolombia QR, datáfono/tarjeta, **pago mixto** (combinación de dos o más). El pago mixto se modela como una lista de `pagos` asociados a un mismo pedido; la suma debe cuadrar con el total.
+
+### 2.4 Arqueo y cierre de caja
+
+La Cajera abre turno declarando el efectivo inicial. Durante el turno, cada pago en efectivo suma al esperado. Puede registrar `movimientos_caja` (retiros, gastos menores) con concepto. Al cerrar, declara el efectivo contado; el sistema calcula la diferencia y la deja registrada. El turno cerrado no se puede editar.
+
+### 2.5 KDS (Kitchen Display System)
+
+Vista sin scroll, pensada para pantalla vertical u horizontal en cocina. Cada tarjeta = un pedido. Muestra: número corto de pedido, origen (mesa X / domicilio / llevar), ítems con modificadores y notas, tiempo transcurrido con semáforo (verde <5min, amarillo 5-10, rojo >10). Toques: `en preparación` → `listo`. Se actualiza vía Supabase Realtime.
+
+### 2.6 Impresión de tirilla POS
+
+Al cobrar, se genera y envía a la impresora térmica un ticket ESC/POS que incluye: encabezado con marca y sede, número de pedido, fecha/hora, mesa/origen, ítems con cantidades y precios, subtotales, propina si aplica, total, método(s) de pago, mensaje de cierre. Ver §10.
+
+### 2.7 Reportes (Administrador)
+
+Se implementan todos los siguientes, calculados sobre vistas y funciones SQL en Supabase:
+
+- Ventas por rango (día / semana / mes / año / rango libre) con filtro por sede y canal.
+- Ventas por hora del día (mapa de calor semanal para planificar personal).
+- Productos más vendidos (top N por unidades y por ingreso).
+- Categorías más vendidas.
+- Ranking de Vendedoras (ingreso generado, número de pedidos, ticket promedio).
+- Ranking de Cajeras (turnos, pedidos cobrados, diferencia promedio en arqueo).
+- Ticket promedio global y por canal.
+- Mesas más rentables (ingreso por mesa, rotación).
+- Ventas por método de pago (participación %).
+- Ventas por canal (mesa / domicilio / para llevar).
+- Comparativos período contra período (semana vs. semana anterior, mes vs. mes anterior).
+- Historial de arqueos y diferencias.
+- Anulaciones y motivos.
+- Descuentos y promociones aplicados.
+- Tiempo promedio de preparación por producto (de `enviado_cocina` a `listo`).
+
+Exportación a CSV y XLSX en todos los reportes.
+
+---
+
+## 3. Stack técnico
+
+| Capa | Tecnología | Razón |
+|---|---|---|
+| Framework | **Next.js 15 (App Router)**, TypeScript estricto | SSR/RSC para reportes pesados, rutas por rol vía middleware. |
+| Estilos | **Tailwind CSS** + tokens CSS personalizados | Consistencia del sistema Claymorphism definido en §8. |
+| UI base | Componentes propios en `components/ui/*`, sin librerías de componentes cerradas. `lucide-react` para iconos. | El Claymorphism exige control fino de sombras y radios; las librerías estándar (shadcn, Radix) se pueden usar como **primitivas de accesibilidad** (Radix headless), pero el estilo final es propio. |
+| Estado | Server Components + Server Actions donde aplique. `zustand` solo para estado UI local del cliente (carrito de pedido en curso, filtros). | Menos JS al cliente, menos hidratación innecesaria. |
+| Formularios | `react-hook-form` + `zod` | Validación tipada compartida cliente/servidor. |
+| Realtime | **Supabase Realtime** vía canales de Postgres Changes | KDS y sincronización de estado entre Vendedora y Cajera. |
+| Backend | **Supabase**: Postgres, Auth, Storage, Edge Functions (Deno) | Un solo proveedor, RLS nativa, Realtime incluido. |
+| Autenticación | Supabase Auth (email/password) + PIN vía Edge Function (§6). | Rotación rápida en dispositivos compartidos sin sacrificar RLS. |
+| Gráficas | **Recharts** | Suficiente para todos los reportes descritos. |
+| Fechas | `date-fns` con locale `es-CO`, zona `America/Bogota` **fija en todo el sistema**. | Evita drift de zona horaria en reportes. |
+| Dinero | `dinero.js` v2 (o helpers propios con `bigint` de centavos). **Nunca `number` para montos.** | Precisión monetaria. |
+| Impresión POS | Servicio local `print-bridge` en la PC de caja (Node.js) que expone HTTP en LAN y envía ESC/POS por TCP a la impresora térmica. Ver §10. | Único camino confiable multiplataforma. |
+| Tests | `vitest` para unitarios, `playwright` para E2E de los flujos críticos (tomar pedido, cobrar, cerrar turno). | Cobertura donde más duele si se rompe. |
+
+**Node** ≥ 20 LTS. **Package manager:** `pnpm`. **Linter/formatter:** `eslint` + `prettier` con reglas del proyecto (ver `.eslintrc` y `.prettierrc`).
+
+---
+
+## 4. Skills obligatorios en Claude Code
+
+Antes de iniciar cualquier tarea no trivial, cargar y aplicar los siguientes skills. Si un skill no está instalado, **detente y pídelo al usuario** antes de proceder.
+
+### 4.1 Superpowers (framework de Obra)
+
+Repo: `https://github.com/obra/superpowers`.
+
+Uso obligatorio:
+- **`brainstorming`** al inicio de cualquier feature nueva, antes de escribir código.
+- **`planning-execution-workflow`** para dividir features grandes en tareas ejecutables.
+- **`test-driven-development`** para toda lógica de negocio (cálculo de totales, arqueo, agregación de reportes, transiciones de estado de pedido).
+- **`root-cause-tracing`** ante cualquier bug reportado; no parches sintomáticos.
+- **`writing-clearly-and-persuasively`** para todo texto visible al usuario (mensajes de error, tooltips, confirmaciones).
+
+Regla dura: **ningún commit de lógica de negocio sin test previo**. Si Superpowers TDD dice "escribe el test primero", se cumple sin excepción.
+
+### 4.2 UX/UI Pro Max Skill
+
+Fuente: `https://ui-ux-pro-max-skill.nextlevelbuilder.io/`.
+
+Uso obligatorio para:
+- Definir jerarquía visual de cada pantalla antes de maquetar.
+- Auditar cada vista terminada contra su checklist antes de marcar la tarea como completa.
+- Resolver dudas de espaciado, contraste, densidad de información y estados (hover, focus, disabled, loading, empty, error).
+
+### 4.3 Skills de Anthropic ya disponibles
+
+- `frontend-design` para todo lo relativo a tokens, tipografía y consistencia general.
+- `product-self-knowledge` si en algún momento el desarrollo toca la API de Anthropic (previsto solo si más adelante se integra un asistente de IA para el Admin; **no en el MVP**).
+
+---
+
+## 5. Estructura de carpetas
+
+```
+criollitas-os/
+├── app/
+│   ├── (auth)/
+│   │   ├── login/                    # Login inicial email/password
+│   │   └── pin/                      # Selección de usuario + PIN
+│   ├── (admin)/
+│   │   ├── layout.tsx
+│   │   ├── dashboard/
+│   │   ├── menu/                     # CRUD productos, categorías, modificadores
+│   │   ├── mesas/
+│   │   ├── usuarios/
+│   │   ├── sedes/
+│   │   ├── reportes/
+│   │   │   ├── ventas/
+│   │   │   ├── productos/
+│   │   │   ├── vendedoras/
+│   │   │   ├── cajeras/
+│   │   │   ├── metodos-pago/
+│   │   │   ├── canales/
+│   │   │   ├── mesas/
+│   │   │   ├── tiempos/
+│   │   │   ├── arqueos/
+│   │   │   └── anulaciones/
+│   │   └── auditoria/
+│   ├── (cajera)/
+│   │   ├── layout.tsx
+│   │   ├── pedidos/                  # Cola de pedidos por cobrar
+│   │   ├── cobrar/[pedidoId]/
+│   │   ├── turno/
+│   │   │   ├── abrir/
+│   │   │   ├── movimientos/
+│   │   │   └── cerrar/
+│   │   └── mi-turno/                 # Reporte del turno actual
+│   ├── (vendedora)/
+│   │   ├── layout.tsx
+│   │   ├── inicio/                   # Selector origen: mesa / domicilio / llevar
+│   │   ├── pedido/[pedidoId]/        # Editor de pedido en curso
+│   │   └── mesas/                    # Vista de estado de las 5 mesas
+│   ├── (cocina)/
+│   │   └── kds/
+│   ├── api/
+│   │   ├── auth/pin/route.ts         # Verificación de PIN vía Edge Function o route
+│   │   └── print/route.ts            # Envío al print-bridge
+│   └── layout.tsx
+├── components/
+│   ├── ui/                           # Botones, inputs, cards, modales (Claymorphism)
+│   ├── menu/
+│   ├── pedido/
+│   ├── kds/
+│   ├── caja/
+│   └── reportes/
+├── lib/
+│   ├── supabase/
+│   │   ├── client.ts                 # Browser client
+│   │   ├── server.ts                 # Server client (RSC/Server Actions)
+│   │   ├── middleware.ts             # Refresh de sesión
+│   │   └── types.ts                  # Tipos generados con `supabase gen types`
+│   ├── auth/
+│   │   ├── roles.ts
+│   │   └── pin.ts
+│   ├── money.ts                      # Helpers de moneda COP
+│   ├── dates.ts                      # Wrapper de date-fns con locale y TZ fijos
+│   ├── escpos/                       # Constructor de tirilla ESC/POS
+│   └── validations/                  # Esquemas Zod compartidos
+├── supabase/
+│   ├── migrations/                   # SQL versionado
+│   ├── seed.sql
+│   └── functions/                    # Edge Functions Deno
+│       ├── login-pin/
+│       └── close-shift/
+├── print-bridge/                     # Servicio Node.js separado (repo independiente opcional)
+│   ├── src/
+│   └── package.json
+├── tests/
+│   ├── unit/
+│   └── e2e/
+├── CLAUDE.md                         # este archivo
+├── README.md
+└── package.json
+```
+
+---
+
+## 6. Autenticación (email + PIN) y RLS
+
+### 6.1 Flujo de login
+
+1. **Primer uso del dispositivo:** Admin (o cualquier usuario con credenciales) inicia sesión con email/password en `/login`. La sesión Supabase queda persistida en el dispositivo.
+2. **Uso diario / cambio de turno:** en `/pin`, la app muestra la lista de usuarios de la sede actual (avatar + nombre). El usuario toca su nombre y digita su PIN de 4-6 dígitos.
+3. El cliente llama a `POST /api/auth/pin` (o directamente a la Edge Function `login-pin`) con `{ usuario_id, pin }`.
+4. La Edge Function busca `pin_hash` en la tabla `usuarios`, verifica con **bcrypt** (o `argon2`), y si es válida devuelve un **token de sesión Supabase** generado con la Service Role Key (no expuesta al cliente).
+5. El cliente hace `supabase.auth.setSession(...)` con ese token. A partir de ese momento, `auth.uid()` retorna el usuario real y RLS opera normalmente.
+
+**Rate limiting** obligatorio en la Edge Function: máximo 5 intentos por usuario cada 5 minutos. Tras 5 fallos, bloqueo temporal y notificación al Admin.
+
+### 6.2 RLS — política general
+
+- Toda tabla con datos operativos lleva `sede_id`.
+- Se define una función `auth.current_sede_id()` y `auth.current_rol()` que leen del `raw_user_meta_data` del JWT.
+- **Vendedora:** SELECT/INSERT/UPDATE solo sobre pedidos abiertos de su sede, y solo los que ella creó (`vendedora_id = auth.uid()`).
+- **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. INSERT sobre `pagos`, `turnos_caja`, `movimientos_caja`. UPDATE sobre `pedidos` para cambiar a `cobrado`.
+- **Administrador:** acceso total a su(s) sede(s). Un admin global (`is_super_admin = true`) ve todas.
+- **Cocina:** rol especial `cocina`, SELECT sobre pedidos `enviado_cocina`/`en_preparacion`/`listo`, UPDATE solo del campo `estado_item`.
+
+Cada política se implementa en su migración correspondiente y se prueba con un test E2E que intenta violarla desde el rol equivocado y espera un 401/403.
+
+---
+
+## 7. Modelo de datos (Supabase Postgres)
+
+Resumen de tablas principales. El SQL completo vive en `supabase/migrations/`.
+
+```
+sedes                (id, nombre, direccion, telefono, activa, creado_en)
+usuarios             (id [FK auth.users], sede_id, nombre, rol, pin_hash, activo,
+                      avatar_url, creado_en)
+                     -- rol ∈ {admin, cajera, vendedora, cocina}
+categorias           (id, sede_id, nombre, orden, activa, imagen_url)
+productos            (id, sede_id, categoria_id, nombre, descripcion, precio_cop,
+                      imagen_url, activo, tiempo_prep_min, es_combo)
+modificadores        (id, producto_id, nombre, precio_delta_cop, obligatorio,
+                      max_seleccion)
+                     -- ej: "sin cebolla", "extra queso +2000"
+mesas                (id, sede_id, numero, nombre, capacidad, activa, estado)
+                     -- estado ∈ {libre, ocupada, reservada}
+clientes_domicilio   (id, sede_id, nombre, telefono, direccion, referencia, notas)
+
+pedidos              (id, sede_id, numero_corto, canal, mesa_id, cliente_id,
+                      vendedora_id, estado, subtotal_cop, descuento_cop,
+                      propina_cop, total_cop, notas, creado_en, cerrado_en)
+                     -- canal ∈ {mesa, domicilio, llevar}
+                     -- estado ∈ {abierto, enviado_cocina, en_preparacion,
+                     --           listo, entregado, cobrado, cerrado, anulado}
+pedido_items         (id, pedido_id, producto_id, cantidad, precio_unit_cop,
+                      subtotal_cop, notas, estado_item, tiempo_listo_en)
+                     -- estado_item ∈ {pendiente, en_preparacion, listo, entregado}
+pedido_item_mods     (id, pedido_item_id, modificador_id, precio_delta_cop)
+
+turnos_caja          (id, sede_id, cajera_id, abierto_en, cerrado_en,
+                      efectivo_inicial_cop, efectivo_declarado_cop,
+                      esperado_cop, diferencia_cop, estado, notas)
+                     -- estado ∈ {abierto, cerrado}
+movimientos_caja     (id, turno_id, tipo, concepto, monto_cop, creado_en)
+                     -- tipo ∈ {retiro, gasto, ingreso_extra}
+pagos                (id, pedido_id, turno_id, metodo, monto_cop, referencia,
+                      creado_en)
+                     -- metodo ∈ {efectivo, nequi, daviplata, bancolombia_qr,
+                     --           datafono, otro}
+
+impresiones          (id, pedido_id, tipo, contenido_escpos, enviado_en,
+                      exito, error)
+                     -- tipo ∈ {comanda_cocina, tirilla_cobro, copia}
+
+auditoria            (id, sede_id, usuario_id, accion, tabla, registro_id,
+                      diff_json, creado_en)
+
+anulaciones          (id, pedido_id, usuario_id, motivo, creado_en)
+
+-- Vistas y funciones para reportes
+vw_ventas_diarias
+vw_top_productos
+vw_ranking_vendedoras
+vw_mapa_calor_horas
+fn_reporte_rango(sede_id, desde, hasta)
+```
+
+**Reglas de dinero:** todos los montos se almacenan como `bigint` en **centavos de peso colombiano** (`_cop` en el nombre). Nunca `numeric` con decimales, nunca `float`. La UI convierte en el borde.
+
+**Auditoría:** un trigger `pg_audit_trigger` en cada tabla operativa escribe en `auditoria` con el `diff` JSON. Insertos, updates y deletes quedan registrados con `usuario_id = auth.uid()`.
+
+---
+
+## 8. Sistema de diseño — Claymorphism Criollitas
+
+El estilo se aleja del claymorphism genérico (pasteles fríos) para adaptarlo a la identidad cálida de la marca: fondo chocolate, superficies crema elevadas con doble sombra (externa oscura + luz interna cálida), acentos en amarillo mostaza, verde lechuga y rojo tomate. Todo con radios generosos (≥20px).
+
+### 8.1 Tokens de color
+
+Definidos como CSS variables en `app/globals.css` y expuestos a Tailwind vía `tailwind.config.ts` (`theme.extend.colors`).
+
+```css
+:root {
+  /* Marca — extraídos del logo */
+  --brand-chocolate:    #3D1F14;  /* fondo principal */
+  --brand-chocolate-2:  #52281A;  /* superficies hundidas */
+  --brand-chocolate-3:  #2A1409;  /* profundidades, sombras */
+  --brand-mostaza:      #F5B822;  /* CTA principal, marca "criollitas" */
+  --brand-mostaza-2:    #FFC94A;  /* hover */
+  --brand-mostaza-3:    #D69A0C;  /* pressed */
+  --brand-crema:        #FFF8E7;  /* superficies elevadas (cards) */
+  --brand-crema-2:      #FFEFD1;  /* superficies elevadas hover */
+  --brand-crema-3:      #F5E4BE;  /* borde inferior de tarjeta clay */
+  --brand-verde:        #7CB342;  /* éxito, mesa libre, listo */
+  --brand-verde-2:      #9CCC65;
+  --brand-tomate:       #D84315;  /* alerta, anulación, destructivo */
+  --brand-tomate-2:     #E85D2E;
+
+  /* Semánticos */
+  --surface:            var(--brand-crema);
+  --surface-elevated:   #FFFDF5;
+  --surface-sunken:     var(--brand-crema-3);
+  --text-primary:       var(--brand-chocolate);
+  --text-secondary:     #6B4A38;
+  --text-inverse:       var(--brand-crema);
+  --border-soft:        rgba(61, 31, 20, 0.08);
+  --border-strong:      rgba(61, 31, 20, 0.16);
+
+  /* Sombras Claymorphism — la firma visual */
+  --clay-shadow-sm:
+    0 4px 8px -2px rgba(42, 20, 9, 0.25),
+    0 -2px 4px 0 rgba(255, 248, 231, 0.6) inset,
+    0 2px 4px 0 rgba(42, 20, 9, 0.12) inset;
+  --clay-shadow-md:
+    0 8px 16px -4px rgba(42, 20, 9, 0.30),
+    0 -3px 6px 0 rgba(255, 248, 231, 0.7) inset,
+    0 3px 6px 0 rgba(42, 20, 9, 0.15) inset;
+  --clay-shadow-lg:
+    0 16px 32px -8px rgba(42, 20, 9, 0.35),
+    0 -4px 8px 0 rgba(255, 248, 231, 0.75) inset,
+    0 4px 8px 0 rgba(42, 20, 9, 0.18) inset;
+  --clay-shadow-pressed:
+    0 2px 4px -1px rgba(42, 20, 9, 0.20),
+    0 3px 6px 0 rgba(42, 20, 9, 0.20) inset,
+    0 -1px 2px 0 rgba(255, 248, 231, 0.3) inset;
+
+  /* Sombras Claymorphism para superficie oscura (chocolate) */
+  --clay-shadow-dark-md:
+    0 8px 16px -4px rgba(0, 0, 0, 0.5),
+    0 -3px 6px 0 rgba(245, 184, 34, 0.15) inset,
+    0 3px 6px 0 rgba(0, 0, 0, 0.35) inset;
+}
+```
+
+### 8.2 Radios y tipografía
+
+```css
+:root {
+  --radius-sm: 12px;
+  --radius-md: 20px;   /* default para tarjetas y botones */
+  --radius-lg: 28px;
+  --radius-xl: 36px;
+  --radius-pill: 999px;
+
+  --font-display: "Fredoka", system-ui, sans-serif;   /* refleja "criollitas" del logo */
+  --font-body:    "Inter", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;  /* tickets, cifras */
+}
+```
+
+Cargar Fredoka e Inter con `next/font/google` en `app/layout.tsx`. No cargar por CDN externa.
+
+### 8.3 Componentes base (contrato)
+
+Cada uno vive en `components/ui/` y expone variantes vía `cva` (`class-variance-authority`).
+
+- **`<ClayButton />`** — variantes: `primary` (mostaza), `secondary` (crema), `ghost`, `destructive` (tomate), `success` (verde). Tamaños: `sm`, `md`, `lg`, `xl`. Estados: hover eleva sombra, pressed usa `--clay-shadow-pressed`, disabled desatura y baja opacidad. Focus visible con outline mostaza a 3px.
+- **`<ClayCard />`** — superficie crema sobre fondo chocolate con `--clay-shadow-md`. Padding por defecto `p-6`. Variante `elevated` (`lg`), `flat` (sin sombra externa), `sunken`.
+- **`<ClayInput />`** — sombra interna (hundida), radio `md`, label flotante o fija según densidad.
+- **`<ClayTabs />`**, **`<ClayModal />`**, **`<ClayBadge />`**, **`<ClayToast />`**.
+- **`<StatCard />`** — para dashboards de reportes.
+- **`<MesaTile />`** — con estado libre/ocupada/reservada codificado por color de fondo (verde/mostaza/tomate suaves) y sombra correspondiente.
+
+**Accesibilidad**: contraste AA mínimo en todo texto. En superficies mostaza, texto chocolate. En superficies chocolate, texto crema. Nunca texto crema sobre mostaza (falla contraste).
+
+### 8.4 Densidad por rol
+
+- **Vendedora (tablet/celular):** targets táctiles ≥ 48px, tipografía cuerpo 16px, botones grandes, columnas amplias.
+- **Cajera (PC):** densidad media, tablas legibles a 1m, atajos de teclado (F2 cobrar, F4 imprimir, Esc cancelar).
+- **Admin (desktop):** densidad alta permitida en tablas de reportes; gráficas con leyendas claras.
+- **KDS (pantalla cocina):** fuentes 20-24px cuerpo, 32px número de pedido, alto contraste, sin colores decorativos que compitan con el semáforo de tiempo.
+
+---
+
+## 9. Rutas por rol y middleware
+
+`middleware.ts` en la raíz:
+
+1. Refresca la sesión Supabase.
+2. Lee el rol del JWT.
+3. Redirige según:
+   - Sin sesión → `/login`.
+   - Sesión sin PIN validado (flag en cookie) y ruta no pública → `/pin`.
+   - Rol `vendedora` intentando entrar a `/(admin)` o `/(cajera)` → `/vendedora/inicio` y log de auditoría.
+   - Análogo para `cajera` y `cocina`.
+4. La ruta `/(cocina)/kds` puede exponerse en modo kiosco con un token de sede (no requiere PIN de usuario), configurable por Admin.
+
+---
+
+## 10. Impresión POS — arquitectura
+
+### 10.1 Servicio `print-bridge`
+
+Pequeña app Node.js que corre en la PC de caja (o en un mini-PC / Raspberry Pi conectado por LAN). Expone:
+
+```
+POST http://<ip-local>:7070/print
+  Body: { "printer": "caja-01", "escpos_base64": "..." }
+  Auth: header X-Bridge-Token (compartido con la app Next.js)
+```
+
+Internamente abre un socket TCP contra la IP de la impresora térmica (puerto 9100 típico) y escribe los bytes. Reintentos con backoff. Cola en disco (SQLite) para no perder tickets si la impresora está offline.
+
+### 10.2 Cliente
+
+`lib/escpos/` construye el ticket con un builder tipado (encabezado, línea, alineación, corte, apertura de cajón). La Server Action `cobrarPedido` calcula el total, registra los pagos, cambia el estado a `cobrado`, y **como paso final** hace `POST` al print-bridge. Si el bridge falla, el pago queda registrado y se marca `impresiones.exito = false` para reintento manual desde la vista de Cajera.
+
+### 10.3 Configuración
+
+Admin registra la impresora en `sedes.impresoras` con nombre, IP, ancho (58mm/80mm), copias. Prueba de impresión desde `/admin/sedes/[id]/impresoras`.
+
+---
+
+## 11. Realtime
+
+Canales Supabase:
+
+- `pedidos:sede_<id>` — INSERT/UPDATE de la tabla `pedidos` y `pedido_items`. Suscriben KDS, Cajera y Vendedora (para ver estados actualizados).
+- `mesas:sede_<id>` — cambios de estado de mesas. Suscribe Vendedora.
+- `turnos:sede_<id>` — turno abierto/cerrado. Suscribe Admin.
+
+Todas las suscripciones se abren en Client Components montados en el layout del rol. Se cierran en `useEffect` cleanup. Nunca en RSC.
+
+---
+
+## 12. Convenciones de código
+
+- **TypeScript estricto**: `strict: true`, `noUncheckedIndexedAccess: true`, `noImplicitOverride: true`.
+- **Nunca `any`**. Si no hay tipo, usar `unknown` y estrechar.
+- **Server Actions** para toda mutación de datos. No `route.ts` para mutaciones salvo integraciones externas (print-bridge).
+- **Validación Zod** en el borde de cada Server Action. El tipo TS se deriva de Zod, no al revés.
+- **Errores**: nunca `throw new Error("string")` en dominio. Usar `Result<T, DomainError>` con union discriminada. `DomainError` es un enum tipado.
+- **Nombres en español para el dominio** (`pedido`, `mesa`, `vendedora`, `arqueo`), inglés para infraestructura (`middleware`, `client`, `service`). Consistencia > pureza.
+- **Componentes**: PascalCase, un componente por archivo salvo variantes íntimamente ligadas.
+- **Server vs Client**: por defecto Server. Marcar `"use client"` solo si hay interactividad, estado local, o hooks del navegador.
+- **Imports**: alias `@/` para la raíz. Orden: externos → `@/lib` → `@/components` → relativos.
+- **Commits**: Conventional Commits en español (`feat: agregar cobro con pago mixto`).
+- **Ramas**: `main` protegida, PRs desde `feature/*`, `fix/*`, `chore/*`.
+
+---
+
+## 13. Guardarraíles — qué NO hacer
+
+Estas son líneas rojas. Si una tarea implica cruzarlas, **detente y pregunta**.
+
+1. **No** exponer la Service Role Key de Supabase al cliente. Vive solo en Edge Functions y variables del servidor.
+2. **No** confiar en el rol del cliente para autorizar. Toda autorización se hace en RLS o en la Server Action con `getUser()`.
+3. **No** usar `number` para dinero. `bigint` en centavos o `Dinero`, siempre.
+4. **No** hacer cálculos de reportes en el cliente. Vistas SQL o funciones RPC.
+5. **No** manejar zonas horarias distintas a `America/Bogota`. Todo timestamp se guarda `timestamptz` y se muestra en Bogotá.
+6. **No** persistir sesiones sin PIN validado en dispositivos de operación.
+7. **No** permitir edición de pedidos ya cobrados. Solo reversión completa con motivo, por Admin.
+8. **No** eliminar productos ni categorías. Soft delete con `activo = false`. La integridad histórica de reportes lo exige.
+9. **No** enviar comandos de impresión sin registrar en `impresiones` primero.
+10. **No** introducir dependencias nuevas sin justificar en el PR (bundle size, mantenimiento, alternativa nativa).
+11. **No** escribir texto visible al usuario en inglés. Todo en español de Colombia. Formatos: `es-CO`, moneda `COP` con separador de miles `.` y sin decimales (`$ 12.500`).
+12. **No** desactivar tests para hacer merge. Si un test falla, se arregla el código o el test, con justificación.
+
+---
+
+## 14. Variables de entorno
+
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=            # solo servidor
+SUPABASE_JWT_SECRET=                  # para firmar sesiones desde login-pin
+
+PRINT_BRIDGE_URL=http://192.168.x.x:7070
+PRINT_BRIDGE_TOKEN=
+
+NEXT_PUBLIC_APP_TZ=America/Bogota
+NEXT_PUBLIC_APP_LOCALE=es-CO
+NEXT_PUBLIC_APP_CURRENCY=COP
+```
+
+Nunca commitear `.env.local`. `.env.example` sí, con placeholders.
+
+---
+
+## 15. Comandos de desarrollo
+
+```bash
+pnpm install
+pnpm dev                     # Next.js en :3000
+pnpm supabase:start          # Supabase local con Docker
+pnpm supabase:migrate        # aplicar migraciones
+pnpm supabase:types          # regenerar lib/supabase/types.ts
+pnpm supabase:seed           # data de prueba (1 sede, menú demo, 5 mesas, usuarios)
+pnpm test                    # unitarios (vitest)
+pnpm test:e2e                # end-to-end (playwright)
+pnpm lint
+pnpm build
+```
+
+Print-bridge:
+
+```bash
+cd print-bridge
+pnpm install
+pnpm dev                     # levanta el servicio en :7070
+```
+
+---
+
+## 16. Roadmap del MVP
+
+Orden sugerido; cada bloque se aborda con Superpowers `planning-execution-workflow` y sale a `main` con tests verdes.
+
+1. **Infraestructura**: Next.js + Supabase local + tokens y componentes base Claymorphism (`ClayButton`, `ClayCard`, `ClayInput`).
+2. **Auth**: registro de usuarios por Admin, login email/password, pantalla PIN, Edge Function `login-pin` con rate limit.
+3. **Menú**: CRUD categorías, productos, modificadores. Subida de imágenes a Supabase Storage.
+4. **Mesas**: CRUD y vista de estado. Realtime.
+5. **Toma de pedido (Vendedora)**: selector origen, editor de pedido, envío a cocina.
+6. **KDS**: vista Realtime, transición de estados de ítem.
+7. **Cobro (Cajera)**: cola de pedidos, cobro simple, pago mixto, impresión ESC/POS vía print-bridge.
+8. **Turnos**: apertura, movimientos, cierre con arqueo.
+9. **Reportes**: dashboard admin con todos los reportes de §2.7, export CSV/XLSX.
+10. **Auditoría y anulaciones**.
+11. **Endurecimiento**: pruebas E2E de los 3 flujos críticos, revisión de RLS, revisión de accesibilidad con UX/UI Pro Max, revisión de rendimiento (LCP < 2.5s en 3G lento para Vendedora en tablet).
+
+---
+
+## 17. Cómo trabajar tarea por tarea
+
+Para cada tarea que Claude Code aborde:
+
+1. Cargar los skills relevantes (§4).
+2. Ejecutar `brainstorming` breve si la tarea no es trivial.
+3. Escribir el plan con `planning-execution-workflow` en un comentario del PR o issue.
+4. Para lógica de negocio, empezar por el test (TDD).
+5. Implementar respetando §12 y §13.
+6. Antes de dar la tarea por terminada, correr `pnpm lint && pnpm test && pnpm build`.
+7. Auditar la UI resultante con la checklist del UX/UI Pro Max Skill.
+8. Dejar en el PR: qué cambió, por qué, cómo se probó, capturas si toca UI, y cualquier decisión que amerite quedar en este `CLAUDE.md` (proponer edit).
+
+Fin del documento.
