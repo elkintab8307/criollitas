@@ -1,26 +1,102 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Marca — extraídos del logo */
+  --brand-chocolate:    #3D1F14;  /* fondo principal */
+  --brand-chocolate-2:  #52281A;  /* superficies hundidas */
+  --brand-chocolate-3:  #2A1409;  /* profundidades, sombras */
+  --brand-mostaza:      #F5B822;  /* CTA principal, marca "criollitas" */
+  --brand-mostaza-2:    #FFC94A;  /* hover */
+  --brand-mostaza-3:    #D69A0C;  /* pressed */
+  --brand-crema:        #FFF8E7;  /* superficies elevadas (cards) */
+  --brand-crema-2:      #FFEFD1;  /* superficies elevadas hover */
+  --brand-crema-3:      #F5E4BE;  /* borde inferior de tarjeta clay */
+  --brand-verde:        #7CB342;  /* éxito, mesa libre, listo */
+  --brand-verde-2:      #9CCC65;
+  --brand-tomate:       #D84315;  /* alerta, anulación, destructivo */
+  --brand-tomate-2:     #E85D2E;
+
+  /* Semánticos */
+  --surface:            var(--brand-crema);
+  --surface-elevated:   #FFFDF5;
+  --surface-sunken:     var(--brand-crema-3);
+  --text-primary:       var(--brand-chocolate);
+  --text-secondary:     #6B4A38;
+  --text-inverse:       var(--brand-crema);
+  --border-soft:        rgba(61, 31, 20, 0.08);
+  --border-strong:      rgba(61, 31, 20, 0.16);
+
+  /* Sombras Claymorphism — la firma visual */
+  --clay-shadow-sm:
+    0 4px 8px -2px rgba(42, 20, 9, 0.25),
+    0 -2px 4px 0 rgba(255, 248, 231, 0.6) inset,
+    0 2px 4px 0 rgba(42, 20, 9, 0.12) inset;
+  --clay-shadow-md:
+    0 8px 16px -4px rgba(42, 20, 9, 0.30),
+    0 -3px 6px 0 rgba(255, 248, 231, 0.7) inset,
+    0 3px 6px 0 rgba(42, 20, 9, 0.15) inset;
+  --clay-shadow-lg:
+    0 16px 32px -8px rgba(42, 20, 9, 0.35),
+    0 -4px 8px 0 rgba(255, 248, 231, 0.75) inset,
+    0 4px 8px 0 rgba(42, 20, 9, 0.18) inset;
+  --clay-shadow-pressed:
+    0 2px 4px -1px rgba(42, 20, 9, 0.20),
+    0 3px 6px 0 rgba(42, 20, 9, 0.20) inset,
+    0 -1px 2px 0 rgba(255, 248, 231, 0.3) inset;
+
+  /* Sombras Claymorphism para superficie oscura (chocolate) */
+  --clay-shadow-dark-md:
+    0 8px 16px -4px rgba(0, 0, 0, 0.5),
+    0 -3px 6px 0 rgba(245, 184, 34, 0.15) inset,
+    0 3px 6px 0 rgba(0, 0, 0, 0.35) inset;
+
+  --radius-sm: 12px;
+  --radius-md: 20px;   /* default para tarjetas y botones */
+  --radius-lg: 28px;
+  --radius-xl: 36px;
+  --radius-pill: 999px;
+
+  --font-display: var(--font-fredoka), system-ui, sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-brand-chocolate: var(--brand-chocolate);
+  --color-brand-chocolate-2: var(--brand-chocolate-2);
+  --color-brand-chocolate-3: var(--brand-chocolate-3);
+  --color-brand-mostaza: var(--brand-mostaza);
+  --color-brand-mostaza-2: var(--brand-mostaza-2);
+  --color-brand-mostaza-3: var(--brand-mostaza-3);
+  --color-brand-crema: var(--brand-crema);
+  --color-brand-crema-2: var(--brand-crema-2);
+  --color-brand-crema-3: var(--brand-crema-3);
+  --color-brand-verde: var(--brand-verde);
+  --color-brand-verde-2: var(--brand-verde-2);
+  --color-brand-tomate: var(--brand-tomate);
+  --color-brand-tomate-2: var(--brand-tomate-2);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-inverse: var(--text-inverse);
+  --shadow-clay-sm: var(--clay-shadow-sm);
+  --shadow-clay-md: var(--clay-shadow-md);
+  --shadow-clay-lg: var(--clay-shadow-lg);
+  --shadow-clay-pressed: var(--clay-shadow-pressed);
+  --shadow-clay-dark-md: var(--clay-shadow-dark-md);
+  --radius-clay-sm: var(--radius-sm);
+  --radius-clay-md: var(--radius-md);
+  --radius-clay-lg: var(--radius-lg);
+  --radius-clay-xl: var(--radius-xl);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--brand-chocolate);
+  color: var(--text-inverse);
+  font-family: var(--font-body);
 }
