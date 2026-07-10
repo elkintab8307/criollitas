@@ -4,6 +4,83 @@ Este archivo es la fuente única de verdad para Claude Code en este repositorio.
 
 ---
 
+## 0. Modo de trabajo autónomo
+
+Este proyecto tiene UN dueño (el usuario) que no es desarrollador full-time y NO
+quiere ser consultado en cada decisión menor. Claude Code opera con autonomía
+razonable siguiendo estas reglas:
+
+### 0.1 Decide sin preguntar (default: actúa)
+
+Toma la decisión y sigue. Documenta brevemente en el PR/commit qué elegiste y
+por qué. Aplica a:
+
+- Nombres de variables, funciones, archivos, tablas, columnas, rutas.
+- Estructura interna de componentes, hooks, helpers.
+- Elección entre patrones equivalentes (map/reduce/for, switch/objeto lookup,
+  early return/if-else anidado).
+- Librerías utilitarias pequeñas y estables (clsx, cva, date-fns, zod)
+  siempre que ya estén en package.json o encajen con §3 del CLAUDE.md.
+- Refactors internos que no cambian API pública.
+- Manejo de errores, mensajes al usuario, textos de UI (siguiendo tono
+  cálido, español CO, sin jerga técnica).
+- Micro-decisiones de UI: espaciados exactos, radios dentro del rango de
+  tokens, cuál variante de sombra clay usar, orden de campos en un form.
+- Estructura de tests, casos edge que se te ocurran, mocks.
+- Optimizaciones evidentes (memoización obvia, índices SQL obvios).
+- Correcciones de bugs encontrados de paso, si son <20 líneas y sin riesgo.
+- Escritura de queries SQL, políticas RLS, migraciones (siguiendo §7 y §13).
+
+### 0.2 Pregunta SOLO si se cumple al menos una de estas condiciones
+
+1. **Ambigüedad de negocio irresoluble por contexto:** el CLAUDE.md no lo
+   cubre y hay dos interpretaciones con consecuencias operativas distintas
+   para el restaurante (ej. "¿la propina se calcula antes o después del
+   descuento?", "¿el pago mixto puede dejar diferencia a favor del cliente?").
+2. **Costo o dependencia externa nueva:** vas a agregar una dependencia no
+   listada en §3, un servicio de pago, un proveedor de SMS/email pagado, o
+   algo que implique costos recurrentes.
+3. **Cruzar una línea roja de §13:** si tu solución exige cruzarla, PARA y
+   pregunta. No la cruces "temporalmente".
+4. **Cambio destructivo de datos:** migraciones que borran columnas/tablas
+   con datos, DROP, TRUNCATE, cambios de tipo con posible pérdida.
+5. **Cambio de alcance:** la tarea que te pidieron implica en realidad
+   rediseñar algo más grande. Confirma el alcance antes de expandirlo.
+6. **Trade-off estratégico real:** hay dos caminos con implicaciones a largo
+   plazo genuinamente distintas (no meras preferencias de estilo).
+
+### 0.3 Cómo preguntar cuando toca
+
+- UNA sola pregunta por vez, no listas de 8 puntos.
+- Presenta tu recomendación con justificación y pide confirmación:
+  "Voy a hacer X porque Y. ¿OK o prefieres Z?"
+- Nunca preguntes "¿cómo quieres que…?" en abstracto. Siempre con opción
+  por defecto ya elegida.
+
+### 0.4 Cómo NO preguntar (patrones prohibidos)
+
+- "¿Quieres que use TypeScript o JavaScript?" → ya está en §3, es TypeScript.
+- "¿Prefieres tabs o espacios?" → lo dice prettier, no me preguntes.
+- "¿Cómo llamo esta función?" → decide tú.
+- "¿En qué carpeta la pongo?" → sigue §5, decide tú.
+- "¿Agrego un test?" → sí, siempre para lógica de negocio (§4.1).
+- "¿Uso Server Component o Client?" → aplica §12, decide tú.
+- Preguntas encadenadas antes de escribir una sola línea de código.
+
+### 0.5 Cuando termines una tarea
+
+Reporta al final, no en el medio:
+- Qué hiciste (bullets breves).
+- Decisiones que tomaste solo y merecen visibilidad (máx. 3, las más
+  relevantes).
+- Qué queda pendiente o dudoso, si algo.
+- Cómo probarlo en 1 comando.
+
+No pidas permiso para hacer commit, para correr tests, para instalar una
+dependencia ya prevista, ni para leer archivos del repo. Solo hazlo.
+
+---
+
 ## 1. Contexto de negocio
 
 **Cliente:** Criollitas — Arepas Rellenas, Sabores de Tradición.
