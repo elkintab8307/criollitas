@@ -58,3 +58,29 @@ export function rutaPermitida(rol: Rol, pathname: string): boolean {
   const regla = reglaDePrefijo(pathname);
   return !regla || regla.roles.includes(rol);
 }
+
+/** Resultado de evaluar si una sesión autenticada puede seguir hacia una ruta. */
+export type DecisionAcceso =
+  | { tipo: "permitido" }
+  | { tipo: "redirigir"; destino: string };
+
+/**
+ * Decide si una sesión autenticada y con PIN validado puede acceder a una
+ * ruta ya sabida no-pública, y a dónde redirigir si no.
+ *
+ * - Ruta sin regla de prefijo: permitido para cualquier rol, incluso sin rol
+ *   (comportamiento sin cambios — no está restringida por rol).
+ * - Ruta con regla de prefijo y rol desconocido/nulo (sesión rota, sin claim
+ *   de rol en el JWT): redirige a `/login`. No hay `rutaPorRol` a dónde
+ *   mandarla, y dejarla pasar sería abierto-por-defecto.
+ * - Ruta con regla de prefijo y rol conocido no incluido en la regla:
+ *   redirige a `rutaPorRol(rol)`.
+ * - Ruta con regla de prefijo y rol conocido incluido en la regla: permitido.
+ */
+export function resolverAccesoRuta(rol: Rol | null, pathname: string): DecisionAcceso {
+  const regla = reglaDePrefijo(pathname);
+  if (!regla) return { tipo: "permitido" };
+  if (!rol) return { tipo: "redirigir", destino: "/login" };
+  if (!regla.roles.includes(rol)) return { tipo: "redirigir", destino: rutaPorRol(rol) };
+  return { tipo: "permitido" };
+}

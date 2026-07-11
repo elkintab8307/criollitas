@@ -8,6 +8,7 @@ import {
   esRutaPublica,
   reglaDePrefijo,
   rutaPermitida,
+  resolverAccesoRuta,
   type Rol,
 } from "@/lib/auth/roles";
 
@@ -89,6 +90,14 @@ describe("reglaDePrefijo", () => {
   it("/kds admite tanto cocina como admin", () => {
     expect(reglaDePrefijo("/kds")).toEqual({ prefijo: "/kds", roles: ["cocina", "admin"] });
   });
+
+  it("no confunde /pedidos (cajera) con /pedido (vendedora): /pedidos/queue cae en la regla de cajera", () => {
+    expect(reglaDePrefijo("/pedidos/queue")).toEqual({ prefijo: "/pedidos", roles: ["cajera"] });
+  });
+
+  it("no confunde /pedido (vendedora) con /pedidos (cajera): /pedido/123 cae en la regla de vendedora", () => {
+    expect(reglaDePrefijo("/pedido/123")).toEqual({ prefijo: "/pedido", roles: ["vendedora"] });
+  });
 });
 
 describe("rutaPermitida", () => {
@@ -124,5 +133,52 @@ describe("rutaPermitida", () => {
   it("permite cualquier rol en rutas sin regla definida (no restringidas por prefijo)", () => {
     expect(rutaPermitida("admin", "/design")).toBe(true);
     expect(rutaPermitida("cajera", "/algo-sin-regla")).toBe(true);
+  });
+
+  it("no confunde /pedido y /pedidos entre cajera y vendedora en ninguna dirección", () => {
+    expect(rutaPermitida("cajera", "/pedido/123")).toBe(false);
+    expect(rutaPermitida("vendedora", "/pedidos/queue")).toBe(false);
+    expect(rutaPermitida("cajera", "/pedidos/queue")).toBe(true);
+    expect(rutaPermitida("vendedora", "/pedido/123")).toBe(true);
+  });
+});
+
+describe("resolverAccesoRuta", () => {
+  it("permite el acceso cuando el rol conocido está en la regla de la ruta", () => {
+    expect(resolverAccesoRuta("admin", "/dashboard")).toEqual({ tipo: "permitido" });
+    expect(resolverAccesoRuta("vendedora", "/pedido/123")).toEqual({ tipo: "permitido" });
+  });
+
+  it("redirige a la ruta base del rol cuando un rol conocido no está autorizado en la regla", () => {
+    expect(resolverAccesoRuta("cajera", "/dashboard")).toEqual({
+      tipo: "redirigir",
+      destino: "/pedidos",
+    });
+    expect(resolverAccesoRuta("admin", "/pedidos")).toEqual({
+      tipo: "redirigir",
+      destino: "/dashboard",
+    });
+  });
+
+  it("redirige a /login cuando no hay rol (sesión rota) y la ruta tiene regla de prefijo", () => {
+    expect(resolverAccesoRuta(null, "/dashboard")).toEqual({ tipo: "redirigir", destino: "/login" });
+    expect(resolverAccesoRuta(null, "/pedido/123")).toEqual({ tipo: "redirigir", destino: "/login" });
+    expect(resolverAccesoRuta(null, "/kds")).toEqual({ tipo: "redirigir", destino: "/login" });
+  });
+
+  it("permite el paso sin rol en rutas sin regla de prefijo (comportamiento sin cambios)", () => {
+    expect(resolverAccesoRuta(null, "/design")).toEqual({ tipo: "permitido" });
+    expect(resolverAccesoRuta(null, "/algo-sin-regla")).toEqual({ tipo: "permitido" });
+  });
+
+  it("distingue /pedido de /pedidos también con rol nulo", () => {
+    expect(resolverAccesoRuta(null, "/pedidos/queue")).toEqual({
+      tipo: "redirigir",
+      destino: "/login",
+    });
+    expect(resolverAccesoRuta(null, "/pedido/123")).toEqual({
+      tipo: "redirigir",
+      destino: "/login",
+    });
   });
 });

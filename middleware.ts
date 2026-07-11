@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-import { esRutaPublica, reglaDePrefijo, rutaPorRol, type Rol } from "@/lib/auth/roles";
+import { esRutaPublica, resolverAccesoRuta, type Rol } from "@/lib/auth/roles";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -39,11 +39,11 @@ export async function middleware(request: NextRequest) {
   if (!pinValidado && !esPublica) {
     return NextResponse.redirect(new URL("/pin", request.url));
   }
-  if (esPublica || !rol) return response;
+  if (esPublica) return response;
 
-  const regla = reglaDePrefijo(ruta);
-  if (regla && !regla.roles.includes(rol)) {
-    return NextResponse.redirect(new URL(rutaPorRol(rol), request.url));
+  const decision = resolverAccesoRuta(rol, ruta);
+  if (decision.tipo === "redirigir") {
+    return NextResponse.redirect(new URL(decision.destino, request.url));
   }
   return response;
 }
