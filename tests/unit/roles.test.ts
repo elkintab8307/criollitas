@@ -9,6 +9,7 @@ import {
   reglaDePrefijo,
   rutaPermitida,
   resolverAccesoRuta,
+  normalizarRol,
   type Rol,
 } from "@/lib/auth/roles";
 
@@ -180,5 +181,26 @@ describe("resolverAccesoRuta", () => {
       tipo: "redirigir",
       destino: "/login",
     });
+  });
+});
+
+describe("normalizarRol", () => {
+  it("acepta cada rol válido del dominio", () => {
+    const roles: Rol[] = ["admin", "cajera", "vendedora", "cocina"];
+    for (const rol of roles) {
+      expect(normalizarRol(rol)).toBe(rol);
+    }
+  });
+
+  it("retorna null para un string que no es un rol del dominio (JWT corrupto o rol legado)", () => {
+    expect(normalizarRol("gerente")).toBeNull();
+  });
+
+  it("retorna null para undefined, null, string vacío y valores no-string", () => {
+    expect(normalizarRol(undefined)).toBeNull();
+    expect(normalizarRol(null)).toBeNull();
+    expect(normalizarRol("")).toBeNull();
+    expect(normalizarRol(42)).toBeNull();
+    expect(normalizarRol({})).toBeNull();
   });
 });

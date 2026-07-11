@@ -1,5 +1,7 @@
 export type Rol = "admin" | "cajera" | "vendedora" | "cocina";
 
+const ROLES_VALIDOS: readonly string[] = ["admin", "cajera", "vendedora", "cocina"];
+
 export const RUTA_BASE_POR_ROL: Record<Rol, string> = {
   admin: "/dashboard",
   cajera: "/pedidos",
@@ -33,6 +35,18 @@ export const PREFIJOS_POR_ROL: Array<{ prefijo: string; roles: Rol[] }> = [
   { prefijo: "/mesas", roles: ["vendedora"] },
   { prefijo: "/kds", roles: ["cocina", "admin"] },
 ];
+
+/**
+ * Normaliza el claim `rol` crudo de `user_metadata` (JWT) a un `Rol` válido
+ * del dominio, o `null` si no lo es. Cualquier valor que no sea exactamente
+ * uno de los roles conocidos (typo, rol legado, no-string, ausente) se trata
+ * como sesión sin rol en vez de dejarlo llegar a `resolverAccesoRuta`.
+ */
+export function normalizarRol(rolCrudo: unknown): Rol | null {
+  return typeof rolCrudo === "string" && ROLES_VALIDOS.includes(rolCrudo)
+    ? (rolCrudo as Rol)
+    : null;
+}
 
 function coincidePrefijo(pathname: string, prefijo: string): boolean {
   return pathname === prefijo || pathname.startsWith(`${prefijo}/`);

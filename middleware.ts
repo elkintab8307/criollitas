@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-import { esRutaPublica, resolverAccesoRuta, type Rol } from "@/lib/auth/roles";
+import { esRutaPublica, normalizarRol, resolverAccesoRuta } from "@/lib/auth/roles";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -34,7 +34,10 @@ export async function middleware(request: NextRequest) {
   }
 
   const pinValidado = request.cookies.get("pin_validado")?.value === "1";
-  const rol = (user.user_metadata?.rol ?? null) as Rol | null;
+  // Se valida el claim contra los roles conocidos: un valor corrupto o
+  // legado (ej. "gerente") se trata como sesión sin rol, nunca se castea
+  // a ciegas (evita llegar a rutaPorRol() con un rol inexistente).
+  const rol = normalizarRol(user.user_metadata?.rol);
 
   if (!pinValidado && !esPublica) {
     return NextResponse.redirect(new URL("/pin", request.url));
@@ -48,6 +51,8 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// Las rutas /api/* quedan excluidas del middleware: deben autenticarse
+// a sí mismas con getUser() (relevante para el futuro /api/print).
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
