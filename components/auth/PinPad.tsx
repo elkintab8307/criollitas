@@ -39,6 +39,7 @@ export function PinPad({ usuarios }: PinPadProps) {
   const [enviando, setEnviando] = useState(false);
   const [segundosRestantes, setSegundosRestantes] = useState(0);
   const intervaloRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const usuarioEnCursoRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -61,16 +62,21 @@ export function PinPad({ usuarios }: PinPadProps) {
   }
 
   function seleccionarUsuario(usuario: UsuarioPin) {
+    usuarioEnCursoRef.current = usuario.id;
     setUsuarioSeleccionado(usuario);
     setPin("");
     setError(null);
   }
 
   function cambiarUsuario() {
+    if (enviando) return;
+    usuarioEnCursoRef.current = null;
     setUsuarioSeleccionado(null);
     setPin("");
     setError(null);
     setEnviando(false);
+    if (intervaloRef.current) clearInterval(intervaloRef.current);
+    setSegundosRestantes(0);
   }
 
   function agregarDigito(digito: string) {
@@ -87,15 +93,21 @@ export function PinPad({ usuarios }: PinPadProps) {
 
   async function confirmarPin() {
     if (!usuarioSeleccionado || pin.length < PIN_MIN || enviando || segundosRestantes > 0) return;
+    const usuarioId = usuarioSeleccionado.id;
+    const rolUsuario = usuarioSeleccionado.rol;
     setEnviando(true);
     setError(null);
     try {
       const respuesta = await fetch("/api/auth/pin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuario_id: usuarioSeleccionado.id, pin }),
+        body: JSON.stringify({ usuario_id: usuarioId, pin }),
       });
       const datos = await respuesta.json().catch(() => ({}));
+
+      // Si el usuario cambió mientras la petición estaba en vuelo, esta
+      // respuesta ya no aplica a la selección actual.
+      if (usuarioEnCursoRef.current !== usuarioId) return;
 
       if (respuesta.status === 200) {
         const supabase = createClient();
@@ -103,14 +115,27 @@ export function PinPad({ usuarios }: PinPadProps) {
           access_token: datos.access_token,
           refresh_token: datos.refresh_token,
         });
+        if (usuarioEnCursoRef.current !== usuarioId) return;
         if (sesionError) {
           setError("No se pudo iniciar sesión. Intenta de nuevo.");
           setPin("");
           setEnviando(false);
           return;
         }
-        await marcarPinValidado();
-        router.push(rutaPorRol(usuarioSeleccionado.rol));
+
+        try {
+          await marcarPinValidado();
+          if (usuarioEnCursoRef.current !== usuarioId) return;
+          router.push(rutaPorRol(rolUsuario));
+        } catch {
+          await supabase.auth.signOut();
+          if (usuarioEnCursoRef.current !== usuarioId) return;
+          setError(
+            "Tu PIN es correcto, pero no pudimos completar el ingreso. Inténtalo de nuevo.",
+          );
+          setPin("");
+          setEnviando(false);
+        }
         return;
       }
 
@@ -122,7 +147,8 @@ export function PinPad({ usuarios }: PinPadProps) {
       }
 
       if (respuesta.status === 429) {
-        const segundos = Number(datos.segundos_restantes) || 60;
+        const segundosCrudo = Number(datos.segundos_restantes);
+        const segundos = Number.isFinite(segundosCrudo) && segundosCrudo > 0 ? segundosCrudo : 60;
         setError(`Demasiados intentos. Espera ${segundos} segundos.`);
         setPin("");
         iniciarBloqueo(segundos);
@@ -134,6 +160,7 @@ export function PinPad({ usuarios }: PinPadProps) {
       setPin("");
       setEnviando(false);
     } catch {
+      if (usuarioEnCursoRef.current !== usuarioId) return;
       setError("No pudimos conectar con el servidor. Revisa tu conexión.");
       setPin("");
       setEnviando(false);
@@ -255,7 +282,13 @@ export function PinPad({ usuarios }: PinPadProps) {
             </ClayButton>
           </div>
 
-          <ClayButton type="button" variant="secondary" size="md" onClick={cambiarUsuario}>
+          <ClayButton
+            type="button"
+            variant="secondary"
+            size="md"
+            disabled={enviando}
+            onClick={cambiarUsuario}
+          >
             Cambiar de usuario
           </ClayButton>
         </div>
