@@ -41,6 +41,9 @@ Deno.serve(async (req) => {
     return json(400, { error: "Solicitud inválida" });
   }
 
+  // Nota: el conteo y el insert no son atómicos (TOCTOU). Con un solo teclado
+  // de PIN por sede el riesgo real es despreciable; si algún día hay muchos
+  // clientes concurrentes, mover el conteo+insert a una función SQL atómica.
   // Rate limit: fallos de los últimos 5 minutos
   const desde = new Date(Date.now() - VENTANA_MS).toISOString();
   const { data: fallos } = await admin
@@ -67,11 +70,14 @@ Deno.serve(async (req) => {
     .eq("id", usuario_id)
     .single();
 
-  const valido =
-    !!usuario &&
-    usuario.activo &&
-    !!usuario.pin_hash &&
-    bcrypt.compareSync(String(pin), usuario.pin_hash);
+  // Hash bcrypt de relleno para igualar el tiempo de respuesta cuando el
+  // usuario no existe o no tiene PIN (evita enumerar usuarios por timing).
+  const HASH_RELLENO = "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
+  const hashAComparar =
+    usuario && usuario.activo && usuario.pin_hash ? usuario.pin_hash : HASH_RELLENO;
+  const coincide = bcrypt.compareSync(String(pin), hashAComparar);
+  const valido = !!usuario && usuario.activo && !!usuario.pin_hash && coincide;
 
   await admin.from("pin_intentos").insert({ usuario_id, exito: valido });
   if (!valido) return json(401, { error: "PIN incorrecto" });
