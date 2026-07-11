@@ -3,12 +3,12 @@
 import { useId } from "react";
 import { cn } from "@/lib/cn";
 
-export interface ClayInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface ClayInputProps extends React.ComponentPropsWithRef<"input"> {
   label: string;
   error?: string;
 }
 
-export function ClayInput({ label, error, className, id, ...props }: ClayInputProps) {
+export function ClayInput({ label, error, className, id, ref, ...props }: ClayInputProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
   const errorId = `${inputId}-error`;
@@ -18,6 +18,7 @@ export function ClayInput({ label, error, className, id, ...props }: ClayInputPr
         {label}
       </label>
       <input
+        ref={ref}
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
