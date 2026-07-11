@@ -168,7 +168,7 @@ Exportación a CSV y XLSX en todos los reportes.
 | Autenticación | Supabase Auth (email/password) + PIN vía Edge Function (§6). | Rotación rápida en dispositivos compartidos sin sacrificar RLS. |
 | Gráficas | **Recharts** | Suficiente para todos los reportes descritos. |
 | Fechas | `date-fns` con locale `es-CO`, zona `America/Bogota` **fija en todo el sistema**. | Evita drift de zona horaria en reportes. |
-| Dinero | `dinero.js` v2 (o helpers propios con `bigint` de centavos). **Nunca `number` para montos.** | Precisión monetaria. |
+| Dinero | Helpers propios (`lib/money.ts`) con `bigint` de centavos. **Nunca `number` para montos.** | Precisión monetaria. |
 | Impresión POS | Servicio local `print-bridge` en la PC de caja (Node.js) que expone HTTP en LAN y envía ESC/POS por TCP a la impresora térmica. Ver §10. | Único camino confiable multiplataforma. |
 | Tests | `vitest` para unitarios, `playwright` para E2E de los flujos críticos (tomar pedido, cobrar, cerrar turno). | Cobertura donde más duele si se rompe. |
 
@@ -310,7 +310,7 @@ criollitas-os/
 ### 6.2 RLS — política general
 
 - Toda tabla con datos operativos lleva `sede_id`.
-- Se define una función `auth.current_sede_id()` y `auth.current_rol()` que leen del `raw_user_meta_data` del JWT.
+- Se define una función `public.current_sede_id()` y `public.current_rol()` que leen del `raw_user_meta_data` del JWT.
 - **Vendedora:** SELECT/INSERT/UPDATE solo sobre pedidos abiertos de su sede, y solo los que ella creó (`vendedora_id = auth.uid()`).
 - **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. INSERT sobre `pagos`, `turnos_caja`, `movimientos_caja`. UPDATE sobre `pedidos` para cambiar a `cobrado`.
 - **Administrador:** acceso total a su(s) sede(s). Un admin global (`is_super_admin = true`) ve todas.
@@ -390,7 +390,7 @@ El estilo se aleja del claymorphism genérico (pasteles fríos) para adaptarlo a
 
 ### 8.1 Tokens de color
 
-Definidos como CSS variables en `app/globals.css` y expuestos a Tailwind vía `tailwind.config.ts` (`theme.extend.colors`).
+Definidos como CSS variables en `app/globals.css` y expuestos a Tailwind v4 vía `@theme inline` en `app/globals.css`.
 
 ```css
 :root {
@@ -577,7 +577,6 @@ Estas son líneas rojas. Si una tarea implica cruzarlas, **detente y pregunta**.
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=            # solo servidor
-SUPABASE_JWT_SECRET=                  # para firmar sesiones desde login-pin
 
 PRINT_BRIDGE_URL=http://192.168.x.x:7070
 PRINT_BRIDGE_TOKEN=
@@ -585,6 +584,7 @@ PRINT_BRIDGE_TOKEN=
 NEXT_PUBLIC_APP_TZ=America/Bogota
 NEXT_PUBLIC_APP_LOCALE=es-CO
 NEXT_PUBLIC_APP_CURRENCY=COP
+NEXT_PUBLIC_SEDE_ID=
 ```
 
 Nunca commitear `.env.local`. `.env.example` sí, con placeholders.
@@ -600,6 +600,8 @@ pnpm supabase:start          # Supabase local con Docker
 pnpm supabase:migrate        # aplicar migraciones
 pnpm supabase:types          # regenerar lib/supabase/types.ts
 pnpm supabase:seed           # data de prueba (1 sede, menú demo, 5 mesas, usuarios)
+                              # Sin Docker local, el flujo actual es `supabase link` +
+                              # `supabase db push` contra el proyecto cloud deliarepas.
 pnpm test                    # unitarios (vitest)
 pnpm test:e2e                # end-to-end (playwright)
 pnpm lint
