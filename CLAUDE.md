@@ -331,9 +331,10 @@ usuarios             (id [FK auth.users], sede_id, nombre, rol, pin_hash, activo
 categorias           (id, sede_id, nombre, orden, activa, imagen_url)
 productos            (id, sede_id, categoria_id, nombre, descripcion, precio_cop,
                       imagen_url, activo, tiempo_prep_min, es_combo)
-modificadores        (id, producto_id, nombre, precio_delta_cop, obligatorio,
+modificadores        (id, producto_id, grupo, nombre, precio_delta_cop, obligatorio,
                       max_seleccion)
                      -- ej: "sin cebolla", "extra queso +2000"
+                     -- grupo agrupa opciones excluyentes (ej. "Queso": campesino|mozzarella)
 mesas                (id, sede_id, numero, nombre, capacidad, activa, estado)
                      -- estado ∈ {libre, ocupada, reservada}
 clientes_domicilio   (id, sede_id, nombre, telefono, direccion, referencia, notas)
