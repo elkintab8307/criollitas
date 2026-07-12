@@ -686,7 +686,7 @@ Nota RLS: las actions usan el client del usuario (anon + cookies), así RLS es l
 ## Notas para el ejecutor
 
 - El controller provee `SUPABASE_ACCESS_TOKEN` en cada dispatch que toque cloud; nunca commitearlo ni imprimirlo.
-- Credenciales de prueba: admin `jonathantabares@gmail.com` / `Criollitas2026!Cambiar`, PIN `2468`.
+- Credenciales de prueba: las provee el controller en cada dispatch; no se escriben en documentos versionados.
 - Los tests existentes (54) deben seguir verdes en todas las tasks.
 - Si supabase-js rechaza `bigint` en inserts de `precio_cop`, usar `Number()` (precios COP caben con holgura en Number; el guardarraíl §13.3 aplica a aritmética de montos, que sigue en `lib/money.ts` con bigint).
 

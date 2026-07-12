@@ -1,3 +1,8 @@
+-- La sede del seed debe existir en entornos frescos (db reset / proyecto nuevo)
+insert into public.sedes (id, nombre, direccion, telefono)
+values ('00000000-0000-4000-8000-000000000001', 'Criollitas Armenia', 'Armenia, Quindío', '3212127100')
+on conflict (id) do nothing;
+
 -- Categorías (00000000-0000-4000-8000-0000000002NN)
 insert into public.categorias (id, sede_id, nombre, orden) values
   ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001', 'Arepas Rellenas', 1),
