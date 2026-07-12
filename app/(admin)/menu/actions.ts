@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { moverCategoria } from "@/lib/menu/orden";
 import { montoDesdePesos } from "@/lib/money";
@@ -23,6 +24,9 @@ const TIPOS_IMAGEN_PERMITIDOS: Record<string, string> = {
   "image/svg+xml": "svg",
 };
 const TAMANO_MAXIMO_IMAGEN_BYTES = 2 * 1024 * 1024;
+
+/** Validación mínima de identificadores que llegan como argumento crudo de Server Action. */
+const uuidValido = (valor: string): boolean => z.uuid().safeParse(valor).success;
 
 async function exigirAdmin(): Promise<Result<{ sedeId: string }, DomainError>> {
   const supabase = await createServerSupabase();
@@ -79,6 +83,9 @@ export async function editarProducto(
 ): Promise<Result<{ id: string }, DomainError>> {
   const admin = await exigirAdmin();
   if (!admin.ok) return admin;
+  if (!uuidValido(id)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador inválido" });
+  }
   const parsed = productoSchema.safeParse(input);
   if (!parsed.success) {
     return err({
@@ -117,6 +124,9 @@ export async function cambiarActivoProducto(
 ): Promise<Result<{ id: string }, DomainError>> {
   const admin = await exigirAdmin();
   if (!admin.ok) return admin;
+  if (!uuidValido(id)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador inválido" });
+  }
   const supabase = await createServerSupabase();
   const { data, error } = await supabase
     .from("productos")
@@ -186,6 +196,9 @@ export async function editarCategoria(
 ): Promise<Result<{ id: string }, DomainError>> {
   const admin = await exigirAdmin();
   if (!admin.ok) return admin;
+  if (!uuidValido(id)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador inválido" });
+  }
   const parsed = categoriaSchema.safeParse(input);
   if (!parsed.success) {
     return err({
@@ -216,6 +229,12 @@ export async function moverCategoriaAction(
 ): Promise<Result<null, DomainError>> {
   const admin = await exigirAdmin();
   if (!admin.ok) return admin;
+  if (!uuidValido(id)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador inválido" });
+  }
+  if (!z.enum(["arriba", "abajo"]).safeParse(direccion).success) {
+    return err({ codigo: "VALIDACION", mensaje: "Dirección inválida" });
+  }
   const supabase = await createServerSupabase();
   const { data: categorias, error: selectError } = await supabase
     .from("categorias")
@@ -255,6 +274,9 @@ export async function guardarModificador(
 ): Promise<Result<{ id: string }, DomainError>> {
   const admin = await exigirAdmin();
   if (!admin.ok) return admin;
+  if (input.id && !uuidValido(input.id)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador inválido" });
+  }
   const parsed = modificadorSchema.safeParse(input);
   if (!parsed.success) {
     return err({
@@ -263,8 +285,7 @@ export async function guardarModificador(
     });
   }
   const supabase = await createServerSupabase();
-  const registro = {
-    producto_id: parsed.data.productoId,
+  const camposComunes = {
     grupo: parsed.data.grupo ?? null,
     nombre: parsed.data.nombre,
     // aritmética de montos sigue en lib/money con bigint; aquí es solo serialización
@@ -272,9 +293,46 @@ export async function guardarModificador(
     obligatorio: parsed.data.obligatorio,
     max_seleccion: parsed.data.maxSeleccion,
   };
-  const { data, error } = input.id
-    ? await supabase.from("modificadores").update(registro).eq("id", input.id).select("id").single()
-    : await supabase.from("modificadores").insert(registro).select("id").single();
+  if (input.id) {
+    // No se permite reasignar el modificador a otro producto (no es una función soportada):
+    // se verifica que el producto_id existente coincida con el enviado antes de actualizar.
+    const { data: existente, error: existeError } = await supabase
+      .from("modificadores")
+      .select("producto_id")
+      .eq("id", input.id)
+      .single();
+    if (existeError || !existente) {
+      return err({
+        codigo: "NO_ENCONTRADO",
+        mensaje: "El modificador no existe o ya fue eliminado.",
+      });
+    }
+    if (existente.producto_id !== parsed.data.productoId) {
+      return err({
+        codigo: "VALIDACION",
+        mensaje: "El modificador no pertenece a ese producto",
+      });
+    }
+    const { data, error } = await supabase
+      .from("modificadores")
+      .update(camposComunes)
+      .eq("id", input.id)
+      .select("id")
+      .single();
+    if (error) {
+      return err({
+        codigo: "BASE_DATOS",
+        mensaje: "No pudimos guardar el modificador. Intenta de nuevo.",
+      });
+    }
+    revalidatePath("/menu");
+    return ok({ id: data.id });
+  }
+  const { data, error } = await supabase
+    .from("modificadores")
+    .insert({ producto_id: parsed.data.productoId, ...camposComunes })
+    .select("id")
+    .single();
   if (error) {
     return err({
       codigo: "BASE_DATOS",
@@ -291,12 +349,20 @@ export async function cambiarActivoModificador(
 ): Promise<Result<null, DomainError>> {
   const admin = await exigirAdmin();
   if (!admin.ok) return admin;
+  if (!uuidValido(id)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador inválido" });
+  }
   const supabase = await createServerSupabase();
-  const { error } = await supabase.from("modificadores").update({ activo }).eq("id", id);
-  if (error) {
+  const { data, error } = await supabase
+    .from("modificadores")
+    .update({ activo })
+    .eq("id", id)
+    .select("id")
+    .single();
+  if (error || !data) {
     return err({
-      codigo: "BASE_DATOS",
-      mensaje: "No pudimos actualizar el modificador. Intenta de nuevo.",
+      codigo: "NO_ENCONTRADO",
+      mensaje: "El modificador no existe o ya fue eliminado.",
     });
   }
   revalidatePath("/menu");
@@ -309,6 +375,9 @@ export async function subirImagenProducto(
 ): Promise<Result<{ url: string }, DomainError>> {
   const admin = await exigirAdmin();
   if (!admin.ok) return admin;
+  if (!uuidValido(productoId)) {
+    return err({ codigo: "VALIDACION", mensaje: "Producto inválido" });
+  }
   const archivo = formData.get("imagen");
   if (!(archivo instanceof File)) {
     return err({ codigo: "VALIDACION", mensaje: "Selecciona una imagen" });
@@ -321,6 +390,16 @@ export async function subirImagenProducto(
     return err({ codigo: "VALIDACION", mensaje: "La imagen no puede pesar más de 2 MB" });
   }
   const supabase = await createServerSupabase();
+  // Se confirma que el producto existe ANTES de subir el archivo, para no dejar
+  // objetos huérfanos en Storage si llega un id que no corresponde a ningún producto.
+  const { data: productoExistente, error: existeError } = await supabase
+    .from("productos")
+    .select("id")
+    .eq("id", productoId)
+    .single();
+  if (existeError || !productoExistente) {
+    return err({ codigo: "NO_ENCONTRADO", mensaje: "El producto no existe o ya fue eliminado." });
+  }
   const ruta = `productos/${productoId}.${extension}`;
   const { error: subidaError } = await supabase.storage
     .from("menu")
@@ -332,14 +411,16 @@ export async function subirImagenProducto(
     data: { publicUrl },
   } = supabase.storage.from("menu").getPublicUrl(ruta);
   const imagenUrl = `${publicUrl}?v=${Date.now()}`;
-  const { error: updateError } = await supabase
+  const { data: actualizado, error: updateError } = await supabase
     .from("productos")
     .update({ imagen_url: imagenUrl })
-    .eq("id", productoId);
-  if (updateError) {
+    .eq("id", productoId)
+    .select("id")
+    .single();
+  if (updateError || !actualizado) {
     return err({
-      codigo: "BASE_DATOS",
-      mensaje: "No pudimos guardar la imagen del producto. Intenta de nuevo.",
+      codigo: "NO_ENCONTRADO",
+      mensaje: "El producto no existe o ya fue eliminado.",
     });
   }
   revalidatePath("/menu");
