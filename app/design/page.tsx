@@ -1,6 +1,10 @@
+import { ClayBadge, type ClayBadgeProps } from "@/components/ui/ClayBadge";
 import { ClayButton, type ClayButtonProps } from "@/components/ui/ClayButton";
 import { ClayCard, type ClayCardProps } from "@/components/ui/ClayCard";
 import { ClayInput } from "@/components/ui/ClayInput";
+import { DemoModal } from "@/components/ui/DemoModal";
+import { MesaTile } from "@/components/ui/MesaTile";
+import type { EstadoMesa } from "@/lib/mesas/estado";
 
 const VARIANTES_BOTON: NonNullable<ClayButtonProps["variant"]>[] = [
   "primary",
@@ -52,6 +56,26 @@ const VARIANTES_CARD: {
     titulo: "Tarjeta hundida",
     descripcion: "Sombra interna, para paneles de resumen o contenedores anidados.",
   },
+];
+
+const VARIANTES_BADGE: { variant: NonNullable<ClayBadgeProps["variant"]>; etiqueta: string }[] = [
+  { variant: "neutral", etiqueta: "Pendiente" },
+  { variant: "exito", etiqueta: "Listo" },
+  { variant: "alerta", etiqueta: "En preparación" },
+  { variant: "peligro", etiqueta: "Anulado" },
+];
+
+const MESAS_MUESTRA: {
+  numero: number;
+  nombre: string;
+  capacidad: number;
+  estado: EstadoMesa;
+  activa: boolean;
+}[] = [
+  { numero: 1, nombre: "Mesa 1", capacidad: 4, estado: "libre", activa: true },
+  { numero: 2, nombre: "Mesa 2", capacidad: 2, estado: "ocupada", activa: true },
+  { numero: 3, nombre: "Mesa 3", capacidad: 6, estado: "reservada", activa: true },
+  { numero: 4, nombre: "Mesa 4", capacidad: 4, estado: "libre", activa: false },
 ];
 
 const SWATCHES: { nombre: string; className: string; hex: string; textoOscuro: boolean }[] = [
@@ -147,6 +171,46 @@ export default function DesignPage() {
               error="El correo electrónico ingresado no es válido."
             />
           </ClayCard>
+        </section>
+
+        {/* Modal */}
+        <section aria-labelledby="seccion-modal" className="flex flex-col gap-6">
+          <h2 id="seccion-modal" className="font-display text-2xl font-semibold text-text-inverse">
+            ClayModal
+          </h2>
+          <ClayCard variant="default" className="flex flex-col items-start gap-4">
+            <p className="font-body text-sm text-text-secondary">
+              Modal nativo sobre <code className="font-mono">&lt;dialog&gt;</code>, con cierre por
+              Esc, clic fuera del panel o los botones de la muestra.
+            </p>
+            <DemoModal />
+          </ClayCard>
+        </section>
+
+        {/* Badges */}
+        <section aria-labelledby="seccion-badges" className="flex flex-col gap-6">
+          <h2 id="seccion-badges" className="font-display text-2xl font-semibold text-text-inverse">
+            ClayBadge
+          </h2>
+          <div className="flex flex-wrap items-center gap-4">
+            {VARIANTES_BADGE.map(({ variant, etiqueta }) => (
+              <ClayBadge key={variant} variant={variant}>
+                {etiqueta}
+              </ClayBadge>
+            ))}
+          </div>
+        </section>
+
+        {/* Mesas */}
+        <section aria-labelledby="seccion-mesas" className="flex flex-col gap-6">
+          <h2 id="seccion-mesas" className="font-display text-2xl font-semibold text-text-inverse">
+            Mesas
+          </h2>
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+            {MESAS_MUESTRA.map((mesa) => (
+              <MesaTile key={mesa.numero} {...mesa} />
+            ))}
+          </div>
         </section>
 
         {/* Swatches de color */}

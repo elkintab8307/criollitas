@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -39,6 +39,126 @@ export type Database = {
   }
   public: {
     Tables: {
+      categorias: {
+        Row: {
+          activa: boolean
+          creado_en: string
+          id: string
+          imagen_url: string | null
+          nombre: string
+          orden: number
+          sede_id: string
+        }
+        Insert: {
+          activa?: boolean
+          creado_en?: string
+          id?: string
+          imagen_url?: string | null
+          nombre: string
+          orden?: number
+          sede_id: string
+        }
+        Update: {
+          activa?: boolean
+          creado_en?: string
+          id?: string
+          imagen_url?: string | null
+          nombre?: string
+          orden?: number
+          sede_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categorias_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mesas: {
+        Row: {
+          activa: boolean
+          capacidad: number
+          creado_en: string
+          estado: Database["public"]["Enums"]["estado_mesa"]
+          id: string
+          nombre: string
+          numero: number
+          sede_id: string
+        }
+        Insert: {
+          activa?: boolean
+          capacidad?: number
+          creado_en?: string
+          estado?: Database["public"]["Enums"]["estado_mesa"]
+          id?: string
+          nombre: string
+          numero: number
+          sede_id: string
+        }
+        Update: {
+          activa?: boolean
+          capacidad?: number
+          creado_en?: string
+          estado?: Database["public"]["Enums"]["estado_mesa"]
+          id?: string
+          nombre?: string
+          numero?: number
+          sede_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mesas_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modificadores: {
+        Row: {
+          activo: boolean
+          grupo: string | null
+          id: string
+          max_seleccion: number
+          nombre: string
+          obligatorio: boolean
+          precio_delta_cop: number
+          producto_id: string
+        }
+        Insert: {
+          activo?: boolean
+          grupo?: string | null
+          id?: string
+          max_seleccion?: number
+          nombre: string
+          obligatorio?: boolean
+          precio_delta_cop?: number
+          producto_id: string
+        }
+        Update: {
+          activo?: boolean
+          grupo?: string | null
+          id?: string
+          max_seleccion?: number
+          nombre?: string
+          obligatorio?: boolean
+          precio_delta_cop?: number
+          producto_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modificadores_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pin_intentos: {
         Row: {
           creado_en: string
@@ -64,6 +184,63 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      productos: {
+        Row: {
+          activo: boolean
+          categoria_id: string
+          creado_en: string
+          descripcion: string | null
+          es_combo: boolean
+          id: string
+          imagen_url: string | null
+          nombre: string
+          precio_cop: number
+          sede_id: string
+          tiempo_prep_min: number | null
+        }
+        Insert: {
+          activo?: boolean
+          categoria_id: string
+          creado_en?: string
+          descripcion?: string | null
+          es_combo?: boolean
+          id?: string
+          imagen_url?: string | null
+          nombre: string
+          precio_cop: number
+          sede_id: string
+          tiempo_prep_min?: number | null
+        }
+        Update: {
+          activo?: boolean
+          categoria_id?: string
+          creado_en?: string
+          descripcion?: string | null
+          es_combo?: boolean
+          id?: string
+          imagen_url?: string | null
+          nombre?: string
+          precio_cop?: number
+          sede_id?: string
+          tiempo_prep_min?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "productos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "productos_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
             referencedColumns: ["id"]
           },
         ]
@@ -145,6 +322,7 @@ export type Database = {
       current_sede_id: { Args: never; Returns: string }
     }
     Enums: {
+      estado_mesa: "libre" | "ocupada" | "reservada"
       rol_usuario: "admin" | "cajera" | "vendedora" | "cocina"
     }
     CompositeTypes: {
@@ -276,6 +454,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      estado_mesa: ["libre", "ocupada", "reservada"],
       rol_usuario: ["admin", "cajera", "vendedora", "cocina"],
     },
   },

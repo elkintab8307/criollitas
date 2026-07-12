@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatearCOP, montoDesdePesos, multiplicar, parsearCOP, sumar } from "@/lib/money";
+import {
+  formatearCOP,
+  montoDesdePesos,
+  multiplicar,
+  parsearCOP,
+  pesosDesdeMonto,
+  sumar,
+} from "@/lib/money";
 
 describe("money", () => {
   it("crea montos desde pesos enteros", () => {
@@ -31,5 +38,12 @@ describe("money", () => {
     expect(parsearCOP("$ 12.500")).toBe(1250000n);
     expect(parsearCOP("12.500")).toBe(1250000n);
     expect(parsearCOP("abc")).toBeNull();
+  });
+  it("convierte un monto a pesos enteros para la UI", () => {
+    expect(pesosDesdeMonto(350000n)).toBe(3500);
+    expect(pesosDesdeMonto(0n)).toBe(0);
+  });
+  it("round-trip pesos -> monto -> pesos", () => {
+    expect(pesosDesdeMonto(montoDesdePesos(12500))).toBe(12500);
   });
 });
