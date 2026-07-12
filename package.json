@@ -29,7 +29,8 @@
     "react-dom": "19.1.0",
     "react-hook-form": "^7.81.0",
     "tailwind-merge": "^3.6.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
