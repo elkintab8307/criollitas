@@ -15,6 +15,7 @@
   --brand-verde-2:      #9CCC65;
   --brand-tomate:       #D84315;  /* alerta, anulación, destructivo */
   --brand-tomate-2:     #E85D2E;
+  --brand-tomate-3:     #F5CBB3;  /* tinte claro para superficies (ej. MesaTile reservada) */
 
   /* Semánticos */
   --surface:            var(--brand-crema);
@@ -75,6 +76,7 @@
   --color-brand-verde-2: var(--brand-verde-2);
   --color-brand-tomate: var(--brand-tomate);
   --color-brand-tomate-2: var(--brand-tomate-2);
+  --color-brand-tomate-3: var(--brand-tomate-3);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-sunken: var(--surface-sunken);
