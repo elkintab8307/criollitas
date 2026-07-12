@@ -121,8 +121,13 @@ describe("rutaPermitida", () => {
   it("permite a vendedora solo sus rutas", () => {
     expect(rutaPermitida("vendedora", "/inicio")).toBe(true);
     expect(rutaPermitida("vendedora", "/pedido/abc")).toBe(true);
-    expect(rutaPermitida("vendedora", "/mesas")).toBe(true);
+    expect(rutaPermitida("vendedora", "/mesas")).toBe(false);
     expect(rutaPermitida("vendedora", "/turno/abrir")).toBe(false);
+  });
+
+  it("permite a admin gestionar /mesas (bloque 4: mesas pasa a ser del admin)", () => {
+    expect(rutaPermitida("admin", "/mesas")).toBe(true);
+    expect(rutaPermitida("cajera", "/mesas")).toBe(false);
   });
 
   it("permite tanto a cocina como a admin entrar a /kds", () => {
