@@ -261,7 +261,6 @@ describe("money", () => {
   it("formatea es-CO sin decimales con miles de punto", () => {
     expect(formatearCOP(1250000n)).toBe("$ 12.500");
     expect(formatearCOP(0n)).toBe("$ 0");
-    expect(formatearCOP(123456789 as unknown as bigint)).toBeDefined; // guard: solo bigint compila
   });
   it("formatea montos grandes", () => {
     expect(formatearCOP(999999999900n)).toBe("$ 9.999.999.999");

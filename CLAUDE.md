@@ -4,6 +4,83 @@ Este archivo es la fuente única de verdad para Claude Code en este repositorio.
 
 ---
 
+## 0. Modo de trabajo autónomo
+
+Este proyecto tiene UN dueño (el usuario) que no es desarrollador full-time y NO
+quiere ser consultado en cada decisión menor. Claude Code opera con autonomía
+razonable siguiendo estas reglas:
+
+### 0.1 Decide sin preguntar (default: actúa)
+
+Toma la decisión y sigue. Documenta brevemente en el PR/commit qué elegiste y
+por qué. Aplica a:
+
+- Nombres de variables, funciones, archivos, tablas, columnas, rutas.
+- Estructura interna de componentes, hooks, helpers.
+- Elección entre patrones equivalentes (map/reduce/for, switch/objeto lookup,
+  early return/if-else anidado).
+- Librerías utilitarias pequeñas y estables (clsx, cva, date-fns, zod)
+  siempre que ya estén en package.json o encajen con §3 del CLAUDE.md.
+- Refactors internos que no cambian API pública.
+- Manejo de errores, mensajes al usuario, textos de UI (siguiendo tono
+  cálido, español CO, sin jerga técnica).
+- Micro-decisiones de UI: espaciados exactos, radios dentro del rango de
+  tokens, cuál variante de sombra clay usar, orden de campos en un form.
+- Estructura de tests, casos edge que se te ocurran, mocks.
+- Optimizaciones evidentes (memoización obvia, índices SQL obvios).
+- Correcciones de bugs encontrados de paso, si son <20 líneas y sin riesgo.
+- Escritura de queries SQL, políticas RLS, migraciones (siguiendo §7 y §13).
+
+### 0.2 Pregunta SOLO si se cumple al menos una de estas condiciones
+
+1. **Ambigüedad de negocio irresoluble por contexto:** el CLAUDE.md no lo
+   cubre y hay dos interpretaciones con consecuencias operativas distintas
+   para el restaurante (ej. "¿la propina se calcula antes o después del
+   descuento?", "¿el pago mixto puede dejar diferencia a favor del cliente?").
+2. **Costo o dependencia externa nueva:** vas a agregar una dependencia no
+   listada en §3, un servicio de pago, un proveedor de SMS/email pagado, o
+   algo que implique costos recurrentes.
+3. **Cruzar una línea roja de §13:** si tu solución exige cruzarla, PARA y
+   pregunta. No la cruces "temporalmente".
+4. **Cambio destructivo de datos:** migraciones que borran columnas/tablas
+   con datos, DROP, TRUNCATE, cambios de tipo con posible pérdida.
+5. **Cambio de alcance:** la tarea que te pidieron implica en realidad
+   rediseñar algo más grande. Confirma el alcance antes de expandirlo.
+6. **Trade-off estratégico real:** hay dos caminos con implicaciones a largo
+   plazo genuinamente distintas (no meras preferencias de estilo).
+
+### 0.3 Cómo preguntar cuando toca
+
+- UNA sola pregunta por vez, no listas de 8 puntos.
+- Presenta tu recomendación con justificación y pide confirmación:
+  "Voy a hacer X porque Y. ¿OK o prefieres Z?"
+- Nunca preguntes "¿cómo quieres que…?" en abstracto. Siempre con opción
+  por defecto ya elegida.
+
+### 0.4 Cómo NO preguntar (patrones prohibidos)
+
+- "¿Quieres que use TypeScript o JavaScript?" → ya está en §3, es TypeScript.
+- "¿Prefieres tabs o espacios?" → lo dice prettier, no me preguntes.
+- "¿Cómo llamo esta función?" → decide tú.
+- "¿En qué carpeta la pongo?" → sigue §5, decide tú.
+- "¿Agrego un test?" → sí, siempre para lógica de negocio (§4.1).
+- "¿Uso Server Component o Client?" → aplica §12, decide tú.
+- Preguntas encadenadas antes de escribir una sola línea de código.
+
+### 0.5 Cuando termines una tarea
+
+Reporta al final, no en el medio:
+- Qué hiciste (bullets breves).
+- Decisiones que tomaste solo y merecen visibilidad (máx. 3, las más
+  relevantes).
+- Qué queda pendiente o dudoso, si algo.
+- Cómo probarlo en 1 comando.
+
+No pidas permiso para hacer commit, para correr tests, para instalar una
+dependencia ya prevista, ni para leer archivos del repo. Solo hazlo.
+
+---
+
 ## 1. Contexto de negocio
 
 **Cliente:** Criollitas — Arepas Rellenas, Sabores de Tradición.
@@ -91,7 +168,7 @@ Exportación a CSV y XLSX en todos los reportes.
 | Autenticación | Supabase Auth (email/password) + PIN vía Edge Function (§6). | Rotación rápida en dispositivos compartidos sin sacrificar RLS. |
 | Gráficas | **Recharts** | Suficiente para todos los reportes descritos. |
 | Fechas | `date-fns` con locale `es-CO`, zona `America/Bogota` **fija en todo el sistema**. | Evita drift de zona horaria en reportes. |
-| Dinero | `dinero.js` v2 (o helpers propios con `bigint` de centavos). **Nunca `number` para montos.** | Precisión monetaria. |
+| Dinero | Helpers propios (`lib/money.ts`) con `bigint` de centavos. **Nunca `number` para montos.** | Precisión monetaria. |
 | Impresión POS | Servicio local `print-bridge` en la PC de caja (Node.js) que expone HTTP en LAN y envía ESC/POS por TCP a la impresora térmica. Ver §10. | Único camino confiable multiplataforma. |
 | Tests | `vitest` para unitarios, `playwright` para E2E de los flujos críticos (tomar pedido, cobrar, cerrar turno). | Cobertura donde más duele si se rompe. |
 
@@ -190,7 +267,6 @@ criollitas-os/
 │   ├── supabase/
 │   │   ├── client.ts                 # Browser client
 │   │   ├── server.ts                 # Server client (RSC/Server Actions)
-│   │   ├── middleware.ts             # Refresh de sesión
 │   │   └── types.ts                  # Tipos generados con `supabase gen types`
 │   ├── auth/
 │   │   ├── roles.ts
@@ -233,7 +309,7 @@ criollitas-os/
 ### 6.2 RLS — política general
 
 - Toda tabla con datos operativos lleva `sede_id`.
-- Se define una función `auth.current_sede_id()` y `auth.current_rol()` que leen del `raw_user_meta_data` del JWT.
+- Se define una función `public.current_sede_id()` y `public.current_rol()` que leen del `raw_user_meta_data` del JWT.
 - **Vendedora:** SELECT/INSERT/UPDATE solo sobre pedidos abiertos de su sede, y solo los que ella creó (`vendedora_id = auth.uid()`).
 - **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. INSERT sobre `pagos`, `turnos_caja`, `movimientos_caja`. UPDATE sobre `pedidos` para cambiar a `cobrado`.
 - **Administrador:** acceso total a su(s) sede(s). Un admin global (`is_super_admin = true`) ve todas.
@@ -313,7 +389,7 @@ El estilo se aleja del claymorphism genérico (pasteles fríos) para adaptarlo a
 
 ### 8.1 Tokens de color
 
-Definidos como CSS variables en `app/globals.css` y expuestos a Tailwind vía `tailwind.config.ts` (`theme.extend.colors`).
+Definidos como CSS variables en `app/globals.css` y expuestos a Tailwind v4 vía `@theme inline` en `app/globals.css`.
 
 ```css
 :root {
@@ -500,7 +576,6 @@ Estas son líneas rojas. Si una tarea implica cruzarlas, **detente y pregunta**.
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=            # solo servidor
-SUPABASE_JWT_SECRET=                  # para firmar sesiones desde login-pin
 
 PRINT_BRIDGE_URL=http://192.168.x.x:7070
 PRINT_BRIDGE_TOKEN=
@@ -508,6 +583,7 @@ PRINT_BRIDGE_TOKEN=
 NEXT_PUBLIC_APP_TZ=America/Bogota
 NEXT_PUBLIC_APP_LOCALE=es-CO
 NEXT_PUBLIC_APP_CURRENCY=COP
+NEXT_PUBLIC_SEDE_ID=
 ```
 
 Nunca commitear `.env.local`. `.env.example` sí, con placeholders.
@@ -523,6 +599,8 @@ pnpm supabase:start          # Supabase local con Docker
 pnpm supabase:migrate        # aplicar migraciones
 pnpm supabase:types          # regenerar lib/supabase/types.ts
 pnpm supabase:seed           # data de prueba (1 sede, menú demo, 5 mesas, usuarios)
+                              # Sin Docker local, el flujo actual es `supabase link` +
+                              # `supabase db push` contra el proyecto cloud deliarepas.
 pnpm test                    # unitarios (vitest)
 pnpm test:e2e                # end-to-end (playwright)
 pnpm lint
