@@ -77,6 +77,47 @@ export type Database = {
           },
         ]
       }
+      mesas: {
+        Row: {
+          activa: boolean
+          capacidad: number
+          creado_en: string
+          estado: Database["public"]["Enums"]["estado_mesa"]
+          id: string
+          nombre: string
+          numero: number
+          sede_id: string
+        }
+        Insert: {
+          activa?: boolean
+          capacidad?: number
+          creado_en?: string
+          estado?: Database["public"]["Enums"]["estado_mesa"]
+          id?: string
+          nombre: string
+          numero: number
+          sede_id: string
+        }
+        Update: {
+          activa?: boolean
+          capacidad?: number
+          creado_en?: string
+          estado?: Database["public"]["Enums"]["estado_mesa"]
+          id?: string
+          nombre?: string
+          numero?: number
+          sede_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mesas_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       modificadores: {
         Row: {
           activo: boolean
@@ -281,6 +322,7 @@ export type Database = {
       current_sede_id: { Args: never; Returns: string }
     }
     Enums: {
+      estado_mesa: "libre" | "ocupada" | "reservada"
       rol_usuario: "admin" | "cajera" | "vendedora" | "cocina"
     }
     CompositeTypes: {
@@ -412,6 +454,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      estado_mesa: ["libre", "ocupada", "reservada"],
       rol_usuario: ["admin", "cajera", "vendedora", "cocina"],
     },
   },
