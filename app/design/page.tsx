@@ -1,6 +1,8 @@
+import { ClayBadge, type ClayBadgeProps } from "@/components/ui/ClayBadge";
 import { ClayButton, type ClayButtonProps } from "@/components/ui/ClayButton";
 import { ClayCard, type ClayCardProps } from "@/components/ui/ClayCard";
 import { ClayInput } from "@/components/ui/ClayInput";
+import { DemoModal } from "@/components/ui/DemoModal";
 
 const VARIANTES_BOTON: NonNullable<ClayButtonProps["variant"]>[] = [
   "primary",
@@ -52,6 +54,13 @@ const VARIANTES_CARD: {
     titulo: "Tarjeta hundida",
     descripcion: "Sombra interna, para paneles de resumen o contenedores anidados.",
   },
+];
+
+const VARIANTES_BADGE: { variant: NonNullable<ClayBadgeProps["variant"]>; etiqueta: string }[] = [
+  { variant: "neutral", etiqueta: "Pendiente" },
+  { variant: "exito", etiqueta: "Listo" },
+  { variant: "alerta", etiqueta: "En preparación" },
+  { variant: "peligro", etiqueta: "Anulado" },
 ];
 
 const SWATCHES: { nombre: string; className: string; hex: string; textoOscuro: boolean }[] = [
@@ -147,6 +156,34 @@ export default function DesignPage() {
               error="El correo electrónico ingresado no es válido."
             />
           </ClayCard>
+        </section>
+
+        {/* Modal */}
+        <section aria-labelledby="seccion-modal" className="flex flex-col gap-6">
+          <h2 id="seccion-modal" className="font-display text-2xl font-semibold text-text-inverse">
+            ClayModal
+          </h2>
+          <ClayCard variant="default" className="flex flex-col items-start gap-4">
+            <p className="font-body text-sm text-text-secondary">
+              Modal nativo sobre <code className="font-mono">&lt;dialog&gt;</code>, con cierre por
+              Esc, clic fuera del panel o los botones de la muestra.
+            </p>
+            <DemoModal />
+          </ClayCard>
+        </section>
+
+        {/* Badges */}
+        <section aria-labelledby="seccion-badges" className="flex flex-col gap-6">
+          <h2 id="seccion-badges" className="font-display text-2xl font-semibold text-text-inverse">
+            ClayBadge
+          </h2>
+          <div className="flex flex-wrap items-center gap-4">
+            {VARIANTES_BADGE.map(({ variant, etiqueta }) => (
+              <ClayBadge key={variant} variant={variant}>
+                {etiqueta}
+              </ClayBadge>
+            ))}
+          </div>
         </section>
 
         {/* Swatches de color */}
