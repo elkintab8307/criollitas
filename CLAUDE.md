@@ -221,7 +221,7 @@ criollitas-os/
 │   │   ├── layout.tsx
 │   │   ├── dashboard/
 │   │   ├── menu/                     # CRUD productos, categorías, modificadores
-│   │   ├── mesas/
+│   │   ├── mesas/                    # CRUD + vista de estado (Realtime)
 │   │   ├── usuarios/
 │   │   ├── sedes/
 │   │   ├── reportes/
@@ -249,7 +249,7 @@ criollitas-os/
 │   │   ├── layout.tsx
 │   │   ├── inicio/                   # Selector origen: mesa / domicilio / llevar
 │   │   ├── pedido/[pedidoId]/        # Editor de pedido en curso
-│   │   └── mesas/                    # Vista de estado de las 5 mesas
+│   │   └── mesas/                    # Vista de estado de las 5 mesas (bloque 5) reutiliza GrillaMesas para seleccionar mesa
 │   ├── (cocina)/
 │   │   └── kds/
 │   ├── api/
@@ -408,6 +408,7 @@ Definidos como CSS variables en `app/globals.css` y expuestos a Tailwind v4 vía
   --brand-verde-2:      #9CCC65;
   --brand-tomate:       #D84315;  /* alerta, anulación, destructivo */
   --brand-tomate-2:     #E85D2E;
+  --brand-tomate-3:     #F5CBB3;  /* tinte claro para superficies de estado opaco (ej. MesaTile reservada); NO sigue la convención "-3 = pressed/profundidad" usada arriba */
 
   /* Semánticos */
   --surface:            var(--brand-crema);
@@ -496,6 +497,7 @@ Cada uno vive en `components/ui/` y expone variantes vía `cva` (`class-variance
    - Sesión sin PIN validado (flag en cookie) y ruta no pública → `/pin`.
    - Rol `vendedora` intentando entrar a `/(admin)` o `/(cajera)` → `/vendedora/inicio` y log de auditoría.
    - Análogo para `cajera` y `cocina`.
+   - `/mesas` (CRUD + vista de estado) pertenece a `admin` desde el bloque 4; la vista de la vendedora para seleccionar mesa llega en el bloque 5 (reutiliza `GrillaMesas` en modo solo lectura).
 4. La ruta `/(cocina)/kds` puede exponerse en modo kiosco con un token de sede (no requiere PIN de usuario), configurable por Admin.
 
 ---
