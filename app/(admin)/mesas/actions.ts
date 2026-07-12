@@ -91,6 +91,11 @@ export async function editarMesa(
     if (error.code === "23505") {
       return err({ codigo: "VALIDACION", mensaje: "Ya existe una mesa con ese número" });
     }
+    // .single() no devuelve data:null,error:null con cero filas afectadas: devuelve un
+    // error con código PGRST116. Cubrimos también !data por si la API cambia ese comportamiento.
+    if (error.code === "PGRST116") {
+      return err({ codigo: "NO_ENCONTRADO", mensaje: "La mesa no existe" });
+    }
     return err({
       codigo: "BASE_DATOS",
       mensaje: "No pudimos actualizar la mesa. Intenta de nuevo.",
