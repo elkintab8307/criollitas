@@ -3,6 +3,8 @@ import { ClayButton, type ClayButtonProps } from "@/components/ui/ClayButton";
 import { ClayCard, type ClayCardProps } from "@/components/ui/ClayCard";
 import { ClayInput } from "@/components/ui/ClayInput";
 import { DemoModal } from "@/components/ui/DemoModal";
+import { MesaTile } from "@/components/ui/MesaTile";
+import type { EstadoMesa } from "@/lib/mesas/estado";
 
 const VARIANTES_BOTON: NonNullable<ClayButtonProps["variant"]>[] = [
   "primary",
@@ -61,6 +63,19 @@ const VARIANTES_BADGE: { variant: NonNullable<ClayBadgeProps["variant"]>; etique
   { variant: "exito", etiqueta: "Listo" },
   { variant: "alerta", etiqueta: "En preparación" },
   { variant: "peligro", etiqueta: "Anulado" },
+];
+
+const MESAS_MUESTRA: {
+  numero: number;
+  nombre: string;
+  capacidad: number;
+  estado: EstadoMesa;
+  activa: boolean;
+}[] = [
+  { numero: 1, nombre: "Mesa 1", capacidad: 4, estado: "libre", activa: true },
+  { numero: 2, nombre: "Mesa 2", capacidad: 2, estado: "ocupada", activa: true },
+  { numero: 3, nombre: "Mesa 3", capacidad: 6, estado: "reservada", activa: true },
+  { numero: 4, nombre: "Mesa 4", capacidad: 4, estado: "libre", activa: false },
 ];
 
 const SWATCHES: { nombre: string; className: string; hex: string; textoOscuro: boolean }[] = [
@@ -182,6 +197,18 @@ export default function DesignPage() {
               <ClayBadge key={variant} variant={variant}>
                 {etiqueta}
               </ClayBadge>
+            ))}
+          </div>
+        </section>
+
+        {/* Mesas */}
+        <section aria-labelledby="seccion-mesas" className="flex flex-col gap-6">
+          <h2 id="seccion-mesas" className="font-display text-2xl font-semibold text-text-inverse">
+            Mesas
+          </h2>
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+            {MESAS_MUESTRA.map((mesa) => (
+              <MesaTile key={mesa.numero} {...mesa} />
             ))}
           </div>
         </section>
