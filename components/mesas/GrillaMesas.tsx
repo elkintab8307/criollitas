@@ -14,6 +14,11 @@ interface GrillaMesasProps {
   mesasIniciales: MesaVista[];
   sedeId: string;
   puedeEditar: boolean;
+  /** "gestion" (default): clic abre el editor de admin. "seleccion": clic
+   *  en una mesa libre y activa llama `onSeleccionarMesa` (flujo de la
+   *  vendedora al iniciar un pedido). */
+  modo?: "gestion" | "seleccion";
+  onSeleccionarMesa?: (mesa: MesaVista) => void;
 }
 
 function ordenarPorNumero(mesas: MesaVista[]): MesaVista[] {
@@ -32,7 +37,13 @@ function filaAMesaVista(fila: MesaFila): MesaVista {
 }
 
 /** Parrilla de mesas con actualización en vivo (Supabase Realtime). */
-export function GrillaMesas({ mesasIniciales, sedeId, puedeEditar }: GrillaMesasProps) {
+export function GrillaMesas({
+  mesasIniciales,
+  sedeId,
+  puedeEditar,
+  modo = "gestion",
+  onSeleccionarMesa,
+}: GrillaMesasProps) {
   const [mesas, setMesas] = useState<MesaVista[]>(() => ordenarPorNumero(mesasIniciales));
   const [editorAbierto, setEditorAbierto] = useState(false);
   const [mesaSeleccionada, setMesaSeleccionada] = useState<MesaVista | null>(null);
@@ -85,9 +96,17 @@ export function GrillaMesas({ mesasIniciales, sedeId, puedeEditar }: GrillaMesas
     setMesaSeleccionada(null);
   }
 
+  function alClicMesa(mesa: MesaVista): (() => void) | undefined {
+    if (modo === "seleccion") {
+      if (!mesa.activa || mesa.estado !== "libre") return undefined;
+      return () => onSeleccionarMesa?.(mesa);
+    }
+    return puedeEditar ? () => abrirExistente(mesa) : undefined;
+  }
+
   return (
     <section className="flex flex-col gap-4" aria-label="Mesas de la sede">
-      {puedeEditar ? (
+      {modo === "gestion" && puedeEditar ? (
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-display text-xl font-semibold text-brand-crema">Mesas</h2>
           <ClayButton type="button" variant="primary" size="sm" onClick={abrirNueva}>
@@ -110,13 +129,13 @@ export function GrillaMesas({ mesasIniciales, sedeId, puedeEditar }: GrillaMesas
               capacidad={mesa.capacidad}
               estado={mesa.estado}
               activa={mesa.activa}
-              onClick={puedeEditar ? () => abrirExistente(mesa) : undefined}
+              onClick={alClicMesa(mesa)}
             />
           ))}
         </div>
       )}
 
-      {puedeEditar && editorAbierto ? (
+      {modo === "gestion" && puedeEditar && editorAbierto ? (
         <EditorMesa
           key={mesaSeleccionada?.id ?? "nueva"}
           mesa={mesaSeleccionada}
