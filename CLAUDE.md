@@ -249,7 +249,7 @@ criollitas-os/
 │   │   ├── layout.tsx
 │   │   ├── inicio/                   # Selector origen: mesa / domicilio / llevar
 │   │   ├── pedido/[pedidoId]/        # Editor de pedido en curso
-│   │   └── mesas/                    # Vista de estado de las 5 mesas (bloque 5) reutiliza GrillaMesas para seleccionar mesa
+│   │   └── mesas/                    # (bloque 5) selección de mesa — reutiliza GrillaMesas
 │   ├── (cocina)/
 │   │   └── kds/
 │   ├── api/

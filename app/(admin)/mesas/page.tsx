@@ -4,10 +4,19 @@ import { ClayCard } from "@/components/ui/ClayCard";
 import { GrillaMesas } from "@/components/mesas/GrillaMesas";
 import type { MesaVista } from "@/components/mesas/tipos";
 
-const SEDE_ID = process.env.NEXT_PUBLIC_SEDE_ID ?? SEDE_DEFAULT_ID;
+// Fallback solo si el JWT no trae `app_metadata.sede_id` (no debería pasar en operación
+// normal). La fuente de verdad es la sesión, no la variable de entorno del dispositivo:
+// el env var puede quedar mal configurado y desincronizar el canal Realtime de los datos
+// realmente visibles vía RLS (mismo criterio que `exigirAdmin` en actions.ts).
+const SEDE_ID_FALLBACK = process.env.NEXT_PUBLIC_SEDE_ID ?? SEDE_DEFAULT_ID;
 
 export default async function MesasPage() {
   const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const sedeId = (user?.app_metadata?.sede_id as string | undefined) ?? SEDE_ID_FALLBACK;
+
   const { data, error } = await supabase
     .from("mesas")
     .select("id, numero, nombre, capacidad, estado, activa")
@@ -28,7 +37,7 @@ export default async function MesasPage() {
           </p>
         </ClayCard>
       ) : (
-        <GrillaMesas mesasIniciales={mesas} sedeId={SEDE_ID} puedeEditar />
+        <GrillaMesas mesasIniciales={mesas} sedeId={sedeId} puedeEditar />
       )}
     </main>
   );

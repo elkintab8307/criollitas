@@ -37,6 +37,12 @@ export function GrillaMesas({ mesasIniciales, sedeId, puedeEditar }: GrillaMesas
   const [editorAbierto, setEditorAbierto] = useState(false);
   const [mesaSeleccionada, setMesaSeleccionada] = useState<MesaVista | null>(null);
 
+  // Resincroniza con los props del servidor (ej. tras `router.refresh()` en EditorMesa)
+  // en vez de depender solo del round-trip de Realtime, que puede fallar o tardar.
+  useEffect(() => {
+    setMesas(ordenarPorNumero(mesasIniciales));
+  }, [mesasIniciales]);
+
   useEffect(() => {
     const supabase = createClient();
     const canal = supabase
