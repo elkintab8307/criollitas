@@ -18,10 +18,15 @@ select u.id, '00000000-0000-4000-8000-000000000001', 'Jonathan (Admin)', 'admin'
 from auth.users u where u.email = 'jonathantabares@gmail.com'
 on conflict (id) do nothing;
 
--- Copiar rol/sede al JWT metadata (lo que leen current_rol/current_sede_id)
+-- Copiar rol/sede al JWT metadata. Van a app_metadata (no user_metadata):
+-- solo el service role puede escribirlo, el propio usuario no puede
+-- autopromoverse (ver migración 20260712120000_auth_app_metadata.sql).
+-- `nombre` sí queda en user_metadata: es solo display, no autorización.
 update auth.users u
-set raw_user_meta_data = coalesce(u.raw_user_meta_data, '{}'::jsonb)
-  || jsonb_build_object('rol', 'admin', 'sede_id', '00000000-0000-4000-8000-000000000001', 'nombre', 'Jonathan (Admin)')
+set raw_app_meta_data = coalesce(u.raw_app_meta_data, '{}'::jsonb)
+  || jsonb_build_object('rol', 'admin', 'sede_id', '00000000-0000-4000-8000-000000000001'),
+    raw_user_meta_data = coalesce(u.raw_user_meta_data, '{}'::jsonb)
+  || jsonb_build_object('nombre', 'Jonathan (Admin)')
 where u.email = 'jonathantabares@gmail.com';
 
 -- El pin_hash se setea en Task 9 Step 5 (bcrypt del PIN de prueba 2468),

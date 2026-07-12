@@ -37,7 +37,9 @@ export async function middleware(request: NextRequest) {
   // Se valida el claim contra los roles conocidos: un valor corrupto o
   // legado (ej. "gerente") se trata como sesión sin rol, nunca se castea
   // a ciegas (evita llegar a rutaPorRol() con un rol inexistente).
-  const rol = normalizarRol(user.user_metadata?.rol);
+  // Se lee de app_metadata (no user_metadata): solo el service role puede
+  // escribirlo, así que el propio usuario no puede autopromoverse.
+  const rol = normalizarRol(user.app_metadata?.rol);
 
   if (!pinValidado && !esPublica) {
     return NextResponse.redirect(new URL("/pin", request.url));

@@ -34,10 +34,12 @@ async function exigirAdmin(): Promise<Result<{ sedeId: string }, DomainError>> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return err({ codigo: "NO_AUTORIZADO", mensaje: "Inicia sesión de nuevo" });
-  if (user.user_metadata?.rol !== "admin") {
+  // app_metadata (no user_metadata): solo el service role puede escribirlo,
+  // así que el propio usuario no puede autopromoverse a admin.
+  if (user.app_metadata?.rol !== "admin") {
     return err({ codigo: "NO_AUTORIZADO", mensaje: "Solo el administrador puede editar el menú" });
   }
-  return ok({ sedeId: (user.user_metadata?.sede_id as string) ?? SEDE_DEFAULT_ID });
+  return ok({ sedeId: (user.app_metadata?.sede_id as string) ?? SEDE_DEFAULT_ID });
 }
 
 export async function crearProducto(
