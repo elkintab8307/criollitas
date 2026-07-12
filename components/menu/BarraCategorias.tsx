@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { crearCategoria, moverCategoriaAction } from "@/app/(admin)/menu/actions";
+import { crearCategoria, editarCategoria, moverCategoriaAction } from "@/app/(admin)/menu/actions";
 import { categoriaSchema, type CategoriaInput } from "@/lib/validations/menu";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
@@ -22,6 +22,7 @@ interface BarraCategoriasProps {
 export function BarraCategorias({ categorias, categoriaActivaId, onSeleccionar }: BarraCategoriasProps) {
   const router = useRouter();
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [categoriaEditando, setCategoriaEditando] = useState<CategoriaFila | null>(null);
   const [moviendoId, setMoviendoId] = useState<string | null>(null);
   const [errorMover, setErrorMover] = useState<string | null>(null);
 
@@ -62,6 +63,16 @@ export function BarraCategorias({ categorias, categoriaActivaId, onSeleccionar }
               >
                 {categoria.nombre}
               </button>
+              {activa ? (
+                <button
+                  type="button"
+                  aria-label={`Editar ${categoria.nombre}`}
+                  onClick={() => setCategoriaEditando(categoria)}
+                  className="rounded-clay-sm px-1 text-sm leading-none text-brand-chocolate/70 hover:text-brand-chocolate focus-visible:outline-2 focus-visible:outline-brand-chocolate"
+                >
+                  ✎
+                </button>
+              ) : null}
               <div className="flex flex-col">
                 <button
                   type="button"
@@ -105,6 +116,15 @@ export function BarraCategorias({ categorias, categoriaActivaId, onSeleccionar }
         onCerrar={() => setModalAbierto(false)}
         onCreada={() => {
           setModalAbierto(false);
+          router.refresh();
+        }}
+      />
+
+      <ModalEditarCategoria
+        categoria={categoriaEditando}
+        onCerrar={() => setCategoriaEditando(null)}
+        onEditada={() => {
+          setCategoriaEditando(null);
           router.refresh();
         }}
       />
@@ -169,6 +189,85 @@ function ModalNuevaCategoria({ abierto, onCerrar, onCreada }: ModalNuevaCategori
           </ClayButton>
           <ClayButton type="submit" variant="primary" disabled={isSubmitting}>
             {isSubmitting ? "Creando…" : "Crear categoría"}
+          </ClayButton>
+        </div>
+      </form>
+    </ClayModal>
+  );
+}
+
+interface ModalEditarCategoriaProps {
+  categoria: CategoriaFila | null;
+  onCerrar: () => void;
+  onEditada: () => void;
+}
+
+/** Modal de renombrar categoría, precargado con el nombre actual. */
+function ModalEditarCategoria({ categoria, onCerrar, onEditada }: ModalEditarCategoriaProps) {
+  return (
+    // key remonta el formulario por categoría: evita arrastrar valores/errores
+    // de una edición previa cuando se abre para otra categoría.
+    <FormularioEditarCategoria
+      key={categoria?.id ?? "cerrado"}
+      categoria={categoria}
+      onCerrar={onCerrar}
+      onEditada={onEditada}
+    />
+  );
+}
+
+function FormularioEditarCategoria({ categoria, onCerrar, onEditada }: ModalEditarCategoriaProps) {
+  const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<CategoriaInput>({
+    resolver: zodResolver(categoriaSchema),
+    defaultValues: { nombre: categoria?.nombre ?? "" },
+  });
+
+  function cerrar() {
+    setErrorGeneral(null);
+    onCerrar();
+  }
+
+  const onSubmit = handleSubmit(async (datos) => {
+    if (!categoria) return;
+    setErrorGeneral(null);
+    const resultado = await editarCategoria(categoria.id, datos);
+    if (!resultado.ok) {
+      setErrorGeneral(resultado.error.mensaje);
+      return;
+    }
+    onEditada();
+  });
+
+  return (
+    <ClayModal abierto={categoria !== null} titulo="Editar categoría" onCerrar={cerrar}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+        <ClayInput
+          label="Nombre de la categoría"
+          placeholder="Ej: Postres"
+          error={errors.nombre?.message}
+          {...register("nombre")}
+        />
+        {errorGeneral ? (
+          <p role="alert" className="text-sm text-brand-tomate-2">
+            {errorGeneral}
+          </p>
+        ) : null}
+        <div className="flex justify-end gap-3">
+          <ClayButton
+            type="button"
+            variant="ghost"
+            className="text-text-primary hover:bg-brand-crema-2"
+            onClick={cerrar}
+          >
+            Cancelar
+          </ClayButton>
+          <ClayButton type="submit" variant="primary" disabled={isSubmitting}>
+            {isSubmitting ? "Guardando…" : "Guardar cambios"}
           </ClayButton>
         </div>
       </form>

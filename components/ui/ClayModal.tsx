@@ -15,6 +15,13 @@ export function ClayModal({ abierto, titulo, onCerrar, children, className }: Cl
   const dialogRef = useRef<HTMLDialogElement>(null);
   const tituloId = useId();
   const onCerrarRef = useRef(onCerrar);
+  // El cierre "click en el fondo" solo debe dispararse si el gesto completo
+  // (pointerdown Y click) ocurrió sobre el fondo. Si el usuario empieza a
+  // seleccionar texto dentro del panel y suelta el mouse fuera (drag-out),
+  // el evento click sintético del navegador puede llegar con target=dialog
+  // aunque el gesto haya iniciado dentro del contenido; sin este chequeo eso
+  // cerraba el modal por accidente.
+  const pointerDownEnFondoRef = useRef(false);
 
   useEffect(() => {
     onCerrarRef.current = onCerrar;
@@ -42,19 +49,17 @@ export function ClayModal({ abierto, titulo, onCerrar, children, className }: Cl
     <dialog
       ref={dialogRef}
       aria-labelledby={tituloId}
+      onPointerDown={(evento) => {
+        pointerDownEnFondoRef.current = evento.target === dialogRef.current;
+      }}
       onClick={(evento) => {
-        if (evento.target === dialogRef.current) {
+        if (pointerDownEnFondoRef.current && evento.target === dialogRef.current) {
           dialogRef.current?.close();
         }
       }}
-      className="w-full max-w-lg bg-transparent p-0"
+      className={cn("w-full max-w-lg bg-transparent p-0", className)}
     >
-      <div
-        className={cn(
-          "w-full max-w-lg rounded-clay-lg bg-brand-crema p-6 text-text-primary shadow-clay-lg",
-          className,
-        )}
-      >
+      <div className="w-full rounded-clay-lg bg-brand-crema p-6 text-text-primary shadow-clay-lg">
         <h2 id={tituloId} className="font-display text-xl font-semibold text-text-primary">
           {titulo}
         </h2>

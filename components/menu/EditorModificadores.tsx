@@ -24,6 +24,7 @@ export function EditorModificadores({ productoId, modificadores }: EditorModific
   const router = useRouter();
   const [cambiandoId, setCambiandoId] = useState<string | null>(null);
   const [errorCambio, setErrorCambio] = useState<string | null>(null);
+  const [modificadorEditando, setModificadorEditando] = useState<ModificadorFila | null>(null);
 
   const grupos = new Map<string, ModificadorFila[]>();
   for (const modificador of modificadores) {
@@ -78,15 +79,25 @@ export function EditorModificadores({ productoId, modificadores }: EditorModific
                       ) : null}
                       {!modificador.activo ? <ClayBadge variant="peligro">Inactivo</ClayBadge> : null}
                     </div>
-                    <ClayButton
-                      type="button"
-                      variant={modificador.activo ? "destructive" : "success"}
-                      size="sm"
-                      disabled={cambiandoId === modificador.id}
-                      onClick={() => alternarActivo(modificador)}
-                    >
-                      {modificador.activo ? "Desactivar" : "Reactivar"}
-                    </ClayButton>
+                    <div className="flex gap-2">
+                      <ClayButton
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setModificadorEditando(modificador)}
+                      >
+                        Editar
+                      </ClayButton>
+                      <ClayButton
+                        type="button"
+                        variant={modificador.activo ? "destructive" : "success"}
+                        size="sm"
+                        disabled={cambiandoId === modificador.id}
+                        onClick={() => alternarActivo(modificador)}
+                      >
+                        {modificador.activo ? "Desactivar" : "Reactivar"}
+                      </ClayButton>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -95,17 +106,34 @@ export function EditorModificadores({ productoId, modificadores }: EditorModific
         </div>
       )}
 
-      <FormularioNuevoModificador productoId={productoId} onCreado={() => router.refresh()} />
+      <FormularioModificador
+        key={modificadorEditando?.id ?? productoId}
+        productoId={productoId}
+        modificador={modificadorEditando}
+        onGuardado={() => {
+          setModificadorEditando(null);
+          router.refresh();
+        }}
+        onCancelarEdicion={modificadorEditando ? () => setModificadorEditando(null) : undefined}
+      />
     </div>
   );
 }
 
-interface FormularioNuevoModificadorProps {
+interface FormularioModificadorProps {
   productoId: string;
-  onCreado: () => void;
+  /** Modificador a editar, o `null` para el formulario de alta. */
+  modificador: ModificadorFila | null;
+  onGuardado: () => void;
+  onCancelarEdicion?: () => void;
 }
 
-function FormularioNuevoModificador({ productoId, onCreado }: FormularioNuevoModificadorProps) {
+function FormularioModificador({
+  productoId,
+  modificador,
+  onGuardado,
+  onCancelarEdicion,
+}: FormularioModificadorProps) {
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const {
     register,
@@ -114,21 +142,39 @@ function FormularioNuevoModificador({ productoId, onCreado }: FormularioNuevoMod
     formState: { errors, isSubmitting },
   } = useForm<ModificadorInput>({
     resolver: zodResolver(modificadorSchema),
-    defaultValues: {
-      productoId,
-      grupo: "",
-      nombre: "",
-      deltaPesos: 0,
-      obligatorio: false,
-      maxSeleccion: 1,
-    },
+    defaultValues: modificador
+      ? {
+          productoId,
+          grupo: modificador.grupo ?? "",
+          nombre: modificador.nombre,
+          deltaPesos: modificador.precio_delta_cop,
+          obligatorio: modificador.obligatorio,
+          maxSeleccion: modificador.max_seleccion,
+        }
+      : {
+          productoId,
+          grupo: "",
+          nombre: "",
+          deltaPesos: 0,
+          obligatorio: false,
+          maxSeleccion: 1,
+        },
   });
 
   const onSubmit = handleSubmit(async (datos) => {
     setErrorGeneral(null);
-    const resultado = await guardarModificador(datos);
+    // El modificador siempre se guarda contra su propio producto: en edición
+    // se manda el id, pero productoId sale del campo oculto de este mismo
+    // formulario (nunca del modificador previo, que podría no coincidir).
+    const resultado = await guardarModificador(
+      modificador ? { ...datos, id: modificador.id } : datos,
+    );
     if (!resultado.ok) {
       setErrorGeneral(resultado.error.mensaje);
+      return;
+    }
+    if (modificador) {
+      onGuardado();
       return;
     }
     reset({
@@ -139,13 +185,15 @@ function FormularioNuevoModificador({ productoId, onCreado }: FormularioNuevoMod
       obligatorio: false,
       maxSeleccion: 1,
     });
-    onCreado();
+    onGuardado();
   });
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3 border-t border-(--border-soft) pt-4" noValidate>
       <input type="hidden" {...register("productoId")} />
-      <span className="font-display text-sm font-medium text-text-primary">Agregar modificador</span>
+      <span className="font-display text-sm font-medium text-text-primary">
+        {modificador ? `Editar "${modificador.nombre}"` : "Agregar modificador"}
+      </span>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <ClayInput
           label="Nombre"
@@ -192,9 +240,26 @@ function FormularioNuevoModificador({ productoId, onCreado }: FormularioNuevoMod
           {errorGeneral}
         </p>
       ) : null}
-      <ClayButton type="submit" variant="secondary" size="sm" disabled={isSubmitting} className="self-start">
-        {isSubmitting ? "Agregando…" : "Agregar modificador"}
-      </ClayButton>
+      <div className="flex gap-3">
+        <ClayButton type="submit" variant="secondary" size="sm" disabled={isSubmitting} className="self-start">
+          {isSubmitting
+            ? "Guardando…"
+            : modificador
+              ? "Guardar cambios"
+              : "Agregar modificador"}
+        </ClayButton>
+        {onCancelarEdicion ? (
+          <ClayButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="self-start text-text-primary hover:bg-brand-crema-2"
+            onClick={onCancelarEdicion}
+          >
+            Cancelar
+          </ClayButton>
+        ) : null}
+      </div>
     </form>
   );
 }
