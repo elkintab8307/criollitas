@@ -14,6 +14,11 @@ export interface ClayModalProps {
 export function ClayModal({ abierto, titulo, onCerrar, children, className }: ClayModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const tituloId = useId();
+  const onCerrarRef = useRef(onCerrar);
+
+  useEffect(() => {
+    onCerrarRef.current = onCerrar;
+  });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -28,10 +33,10 @@ export function ClayModal({ abierto, titulo, onCerrar, children, className }: Cl
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    const manejarCierre = () => onCerrar();
+    const manejarCierre = () => onCerrarRef.current();
     dialog.addEventListener("close", manejarCierre);
     return () => dialog.removeEventListener("close", manejarCierre);
-  }, [onCerrar]);
+  }, []);
 
   return (
     <dialog
@@ -42,16 +47,19 @@ export function ClayModal({ abierto, titulo, onCerrar, children, className }: Cl
           dialogRef.current?.close();
         }
       }}
-      className={cn(
-        "w-full max-w-lg rounded-clay-lg bg-brand-crema p-6 text-text-primary shadow-clay-lg",
-        "backdrop:bg-transparent",
-        className,
-      )}
+      className="w-full max-w-lg bg-transparent p-0"
     >
-      <h2 id={tituloId} className="font-display text-xl font-semibold text-text-primary">
-        {titulo}
-      </h2>
-      <div className="mt-4">{children}</div>
+      <div
+        className={cn(
+          "w-full max-w-lg rounded-clay-lg bg-brand-crema p-6 text-text-primary shadow-clay-lg",
+          className,
+        )}
+      >
+        <h2 id={tituloId} className="font-display text-xl font-semibold text-text-primary">
+          {titulo}
+        </h2>
+        <div className="mt-4">{children}</div>
+      </div>
     </dialog>
   );
 }
