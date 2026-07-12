@@ -309,7 +309,7 @@ criollitas-os/
 ### 6.2 RLS — política general
 
 - Toda tabla con datos operativos lleva `sede_id`.
-- Se define una función `public.current_sede_id()` y `public.current_rol()` que leen del `raw_user_meta_data` del JWT.
+- Se define una función `public.current_sede_id()` y `public.current_rol()` que leen del `raw_app_meta_data` del JWT.
 - **Vendedora:** SELECT/INSERT/UPDATE solo sobre pedidos abiertos de su sede, y solo los que ella creó (`vendedora_id = auth.uid()`).
 - **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. INSERT sobre `pagos`, `turnos_caja`, `movimientos_caja`. UPDATE sobre `pedidos` para cambiar a `cobrado`.
 - **Administrador:** acceso total a su(s) sede(s). Un admin global (`is_super_admin = true`) ve todas.
@@ -331,9 +331,10 @@ usuarios             (id [FK auth.users], sede_id, nombre, rol, pin_hash, activo
 categorias           (id, sede_id, nombre, orden, activa, imagen_url)
 productos            (id, sede_id, categoria_id, nombre, descripcion, precio_cop,
                       imagen_url, activo, tiempo_prep_min, es_combo)
-modificadores        (id, producto_id, nombre, precio_delta_cop, obligatorio,
+modificadores        (id, producto_id, grupo, nombre, precio_delta_cop, obligatorio,
                       max_seleccion)
                      -- ej: "sin cebolla", "extra queso +2000"
+                     -- grupo agrupa opciones excluyentes (ej. "Queso": campesino|mozzarella)
 mesas                (id, sede_id, numero, nombre, capacidad, activa, estado)
                      -- estado ∈ {libre, ocupada, reservada}
 clientes_domicilio   (id, sede_id, nombre, telefono, direccion, referencia, notas)

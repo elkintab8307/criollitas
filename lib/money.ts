@@ -8,6 +8,11 @@ export function montoDesdePesos(pesos: number): MontoCOP {
   return BigInt(pesos) * 100n;
 }
 
+/** Convierte un monto en centavos a pesos enteros, para precargar formularios. */
+export function pesosDesdeMonto(monto: MontoCOP): number {
+  return Number(monto / 100n);
+}
+
 export function sumar(...montos: MontoCOP[]): MontoCOP {
   return montos.reduce((acc, m) => acc + m, 0n);
 }

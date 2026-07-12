@@ -100,3 +100,7 @@ body {
   color: var(--text-inverse);
   font-family: var(--font-body);
 }
+
+dialog::backdrop {
+  background: rgba(42, 20, 9, 0.6);
+}
