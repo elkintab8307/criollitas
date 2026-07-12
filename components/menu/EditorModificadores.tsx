@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cambiarActivoModificador, guardarModificador } from "@/app/(admin)/menu/actions";
 import { modificadorSchema, type ModificadorInput } from "@/lib/validations/menu";
-import { formatearCOP } from "@/lib/money";
+import { formatearCOP, pesosDesdeMonto } from "@/lib/money";
 import { ClayBadge } from "@/components/ui/ClayBadge";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
@@ -147,7 +147,7 @@ function FormularioModificador({
           productoId,
           grupo: modificador.grupo ?? "",
           nombre: modificador.nombre,
-          deltaPesos: modificador.precio_delta_cop,
+          deltaPesos: pesosDesdeMonto(BigInt(modificador.precio_delta_cop)),
           obligatorio: modificador.obligatorio,
           maxSeleccion: modificador.max_seleccion,
         }

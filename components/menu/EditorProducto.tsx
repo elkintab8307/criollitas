@@ -12,6 +12,7 @@ import {
   subirImagenProducto,
 } from "@/app/(admin)/menu/actions";
 import { productoSchema, type ProductoInput } from "@/lib/validations/menu";
+import { pesosDesdeMonto } from "@/lib/money";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
 import { ClayModal } from "@/components/ui/ClayModal";
@@ -68,7 +69,7 @@ export function EditorProducto({
       nombre: producto?.nombre ?? "",
       descripcion: producto?.descripcion ?? "",
       categoriaId: producto?.categoria_id ?? categoriaSugeridaId ?? categorias[0]?.id ?? "",
-      precioPesos: producto ? producto.precio_cop / 100 : undefined,
+      precioPesos: producto ? pesosDesdeMonto(BigInt(producto.precio_cop)) : undefined,
       tiempoPrepMin: producto?.tiempo_prep_min ?? undefined,
       activo: producto?.activo ?? true,
     },
