@@ -128,7 +128,9 @@ export function PinPad({ usuarios }: PinPadProps) {
           if (usuarioEnCursoRef.current !== usuarioId) return;
           router.push(rutaPorRol(rolUsuario));
         } catch {
-          await supabase.auth.signOut();
+          // scope "local": no revocar sesiones del usuario en otros
+          // dispositivos (equipo compartido de POS).
+          await supabase.auth.signOut({ scope: "local" });
           if (usuarioEnCursoRef.current !== usuarioId) return;
           setError(
             "Tu PIN es correcto, pero no pudimos completar el ingreso. Inténtalo de nuevo.",

@@ -1,6 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import bcrypt from "npm:bcryptjs@2";
 
+// NOTA: esta ventana de rate limit (5 intentos / 5 minutos) está duplicada
+// en lib/auth/pin.ts porque esta función (Deno, runtime aislado) no puede
+// importar ese módulo hoy. Si se cambia aquí, replicar el cambio allá.
+// Diferencia de borde conocida: aquí se filtra con `gte` sobre `desde`
+// (límite inferior de la ventana); en lib/auth/pin.ts se filtra con `<`
+// sobre la diferencia en milisegundos (equivalente en la práctica, pero no
+// idéntico bit a bit). Unificar está pendiente para la próxima tarea de auth.
 const MAX_INTENTOS = 5;
 const VENTANA_MS = 5 * 60_000;
 

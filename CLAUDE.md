@@ -267,7 +267,6 @@ criollitas-os/
 │   ├── supabase/
 │   │   ├── client.ts                 # Browser client
 │   │   ├── server.ts                 # Server client (RSC/Server Actions)
-│   │   ├── middleware.ts             # Refresh de sesión
 │   │   └── types.ts                  # Tipos generados con `supabase gen types`
 │   ├── auth/
 │   │   ├── roles.ts

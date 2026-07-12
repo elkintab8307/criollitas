@@ -48,7 +48,11 @@ export function LoginForm() {
           error={errors.password?.message}
           {...register("password")}
         />
-        {errorGeneral ? <p className="text-sm text-brand-tomate">{errorGeneral}</p> : null}
+        {errorGeneral ? (
+          <p className="text-sm text-brand-tomate" role="alert">
+            {errorGeneral}
+          </p>
+        ) : null}
         <ClayButton type="submit" size="lg" disabled={isSubmitting}>
           {isSubmitting ? "Ingresando…" : "Ingresar"}
         </ClayButton>

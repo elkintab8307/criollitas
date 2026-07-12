@@ -1,3 +1,10 @@
+// NOTA: esta ventana de rate limit (5 intentos / 5 minutos) está duplicada
+// en supabase/functions/login-pin/index.ts porque la Edge Function (Deno,
+// runtime aislado) no puede importar hoy este módulo. Si se cambia aquí,
+// replicar el cambio allá. Diferencia de borde conocida: aquí se filtra con
+// `<` (estrictamente dentro de la ventana); en la Edge Function se filtra
+// con `gte` sobre el límite `desde` (equivalente en la práctica, pero no
+// idéntico bit a bit). Unificar está pendiente para la próxima tarea de auth.
 export const MAX_INTENTOS = 5;
 export const VENTANA_MS = 5 * 60_000;
 
