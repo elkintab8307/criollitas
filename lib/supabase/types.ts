@@ -77,6 +77,47 @@ export type Database = {
           },
         ]
       }
+      clientes_domicilio: {
+        Row: {
+          creado_en: string
+          direccion: string
+          id: string
+          nombre: string
+          notas: string | null
+          referencia: string | null
+          sede_id: string
+          telefono: string
+        }
+        Insert: {
+          creado_en?: string
+          direccion: string
+          id?: string
+          nombre: string
+          notas?: string | null
+          referencia?: string | null
+          sede_id: string
+          telefono: string
+        }
+        Update: {
+          creado_en?: string
+          direccion?: string
+          id?: string
+          nombre?: string
+          notas?: string | null
+          referencia?: string | null
+          sede_id?: string
+          telefono?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clientes_domicilio_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mesas: {
         Row: {
           activa: boolean
@@ -155,6 +196,176 @@ export type Database = {
             columns: ["producto_id"]
             isOneToOne: false
             referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pedido_item_mods: {
+        Row: {
+          id: string
+          modificador_id: string
+          pedido_item_id: string
+          precio_delta_cop: number
+        }
+        Insert: {
+          id?: string
+          modificador_id: string
+          pedido_item_id: string
+          precio_delta_cop: number
+        }
+        Update: {
+          id?: string
+          modificador_id?: string
+          pedido_item_id?: string
+          precio_delta_cop?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedido_item_mods_modificador_id_fkey"
+            columns: ["modificador_id"]
+            isOneToOne: false
+            referencedRelation: "modificadores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedido_item_mods_pedido_item_id_fkey"
+            columns: ["pedido_item_id"]
+            isOneToOne: false
+            referencedRelation: "pedido_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pedido_items: {
+        Row: {
+          cantidad: number
+          estado_item: Database["public"]["Enums"]["estado_item_pedido"]
+          id: string
+          notas: string | null
+          pedido_id: string
+          precio_unit_cop: number
+          producto_id: string
+          subtotal_cop: number
+          tiempo_listo_en: string | null
+        }
+        Insert: {
+          cantidad: number
+          estado_item?: Database["public"]["Enums"]["estado_item_pedido"]
+          id?: string
+          notas?: string | null
+          pedido_id: string
+          precio_unit_cop: number
+          producto_id: string
+          subtotal_cop: number
+          tiempo_listo_en?: string | null
+        }
+        Update: {
+          cantidad?: number
+          estado_item?: Database["public"]["Enums"]["estado_item_pedido"]
+          id?: string
+          notas?: string | null
+          pedido_id?: string
+          precio_unit_cop?: number
+          producto_id?: string
+          subtotal_cop?: number
+          tiempo_listo_en?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedido_items_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedido_items_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pedidos: {
+        Row: {
+          canal: Database["public"]["Enums"]["canal_pedido"]
+          cerrado_en: string | null
+          cliente_id: string | null
+          creado_en: string
+          descuento_cop: number
+          estado: Database["public"]["Enums"]["estado_pedido"]
+          id: string
+          mesa_id: string | null
+          notas: string | null
+          numero_corto: number
+          propina_cop: number
+          sede_id: string
+          subtotal_cop: number
+          total_cop: number
+          vendedora_id: string
+        }
+        Insert: {
+          canal: Database["public"]["Enums"]["canal_pedido"]
+          cerrado_en?: string | null
+          cliente_id?: string | null
+          creado_en?: string
+          descuento_cop?: number
+          estado?: Database["public"]["Enums"]["estado_pedido"]
+          id?: string
+          mesa_id?: string | null
+          notas?: string | null
+          numero_corto: number
+          propina_cop?: number
+          sede_id: string
+          subtotal_cop?: number
+          total_cop?: number
+          vendedora_id: string
+        }
+        Update: {
+          canal?: Database["public"]["Enums"]["canal_pedido"]
+          cerrado_en?: string | null
+          cliente_id?: string | null
+          creado_en?: string
+          descuento_cop?: number
+          estado?: Database["public"]["Enums"]["estado_pedido"]
+          id?: string
+          mesa_id?: string | null
+          notas?: string | null
+          numero_corto?: number
+          propina_cop?: number
+          sede_id?: string
+          subtotal_cop?: number
+          total_cop?: number
+          vendedora_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedidos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes_domicilio"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_mesa_id_fkey"
+            columns: ["mesa_id"]
+            isOneToOne: false
+            referencedRelation: "mesas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_vendedora_id_fkey"
+            columns: ["vendedora_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -322,7 +533,18 @@ export type Database = {
       current_sede_id: { Args: never; Returns: string }
     }
     Enums: {
+      canal_pedido: "mesa" | "domicilio" | "llevar"
+      estado_item_pedido: "pendiente" | "en_preparacion" | "listo" | "entregado"
       estado_mesa: "libre" | "ocupada" | "reservada"
+      estado_pedido:
+        | "abierto"
+        | "enviado_cocina"
+        | "en_preparacion"
+        | "listo"
+        | "entregado"
+        | "cobrado"
+        | "cerrado"
+        | "anulado"
       rol_usuario: "admin" | "cajera" | "vendedora" | "cocina"
     }
     CompositeTypes: {
@@ -454,7 +676,19 @@ export const Constants = {
   },
   public: {
     Enums: {
+      canal_pedido: ["mesa", "domicilio", "llevar"],
+      estado_item_pedido: ["pendiente", "en_preparacion", "listo", "entregado"],
       estado_mesa: ["libre", "ocupada", "reservada"],
+      estado_pedido: [
+        "abierto",
+        "enviado_cocina",
+        "en_preparacion",
+        "listo",
+        "entregado",
+        "cobrado",
+        "cerrado",
+        "anulado",
+      ],
       rol_usuario: ["admin", "cajera", "vendedora", "cocina"],
     },
   },
