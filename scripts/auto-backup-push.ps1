@@ -13,7 +13,15 @@ if ([string]::IsNullOrWhiteSpace($status)) {
     exit 0
 }
 
+$tempOut = Join-Path $env:TEMP "criollitas-push-out.log"
+$tempErr = Join-Path $env:TEMP "criollitas-push-err.log"
+
 git add -A
-git commit -m "chore: auto-backup $(Get-Date -Format s)" | Out-String | Add-Content -Path $logPath
-$pushResult = git push origin main 2>&1 | Out-String
-"$timestamp - push ejecutado:`n$pushResult" | Add-Content -Path $logPath
+git commit -m "chore: auto-backup $(Get-Date -Format s)" 1> $tempOut 2> $tempErr
+Get-Content $tempOut, $tempErr -ErrorAction SilentlyContinue | Add-Content -Path $logPath
+
+git push origin main 1> $tempOut 2> $tempErr
+$exitCode = $LASTEXITCODE
+"$timestamp - push exit code: $exitCode" | Add-Content -Path $logPath
+Get-Content $tempOut, $tempErr -ErrorAction SilentlyContinue | Add-Content -Path $logPath
+Remove-Item $tempOut, $tempErr -ErrorAction SilentlyContinue
