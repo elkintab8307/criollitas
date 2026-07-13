@@ -4,12 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  crearPedidoDomicilio,
-  crearPedidoLlevar,
-  crearPedidoMesa,
-  entrarPedidoDeMesa,
-} from "@/app/(vendedora)/inicio/actions";
+import { crearPedidoDomicilio, entrarPedidoDeMesa } from "@/app/(vendedora)/inicio/actions";
 import { clienteDomicilioSchema, type ClienteDomicilioInput } from "@/lib/validations/pedido";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayCard } from "@/components/ui/ClayCard";
@@ -23,33 +18,27 @@ interface SelectorOrigenProps {
   sedeId: string;
 }
 
-/** Los tres orígenes de un pedido nuevo: mesa, domicilio, para llevar. */
+/** Los tres orígenes de un pedido nuevo: mesa, domicilio, para llevar. Tocar
+ *  una mesa libre o "Para llevar" navega directo a /pedido/nuevo -- ningún
+ *  pedido se crea hasta que se confirme el primer producto (Bloque A). Una
+ *  mesa ocupada por la propia vendedora sí tiene un pedido real que
+ *  retomar (entrarPedidoDeMesa). */
 export function SelectorOrigen({ mesasIniciales, sedeId }: SelectorOrigenProps) {
   const router = useRouter();
   const [modalDomicilioAbierto, setModalDomicilioAbierto] = useState(false);
-  const [creandoLlevar, setCreandoLlevar] = useState(false);
-  const [creandoMesa, setCreandoMesa] = useState(false);
+  const [entrandoMesa, setEntrandoMesa] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function alSeleccionarMesa(mesa: MesaVista) {
-    if (creandoMesa) return;
-    setError(null);
-    setCreandoMesa(true);
-    const resultado =
-      mesa.estado === "ocupada" ? await entrarPedidoDeMesa(mesa.id) : await crearPedidoMesa(mesa.id);
-    if (!resultado.ok) {
-      setCreandoMesa(false);
-      setError(resultado.error.mensaje);
+    if (mesa.estado === "libre") {
+      router.push(`/pedido/nuevo?mesaId=${mesa.id}`);
       return;
     }
-    router.push(`/pedido/${resultado.valor.pedidoId}`);
-  }
-
-  async function alCrearLlevar() {
+    if (entrandoMesa) return;
     setError(null);
-    setCreandoLlevar(true);
-    const resultado = await crearPedidoLlevar();
-    setCreandoLlevar(false);
+    setEntrandoMesa(true);
+    const resultado = await entrarPedidoDeMesa(mesa.id);
+    setEntrandoMesa(false);
     if (!resultado.ok) {
       setError(resultado.error.mensaje);
       return;
@@ -67,7 +56,7 @@ export function SelectorOrigen({ mesasIniciales, sedeId }: SelectorOrigenProps) 
 
       <ClayCard variant="flat">
         <h2 className="mb-4 font-display text-xl font-semibold text-text-primary">Mesa</h2>
-        <div className={creandoMesa ? "pointer-events-none opacity-60" : undefined}>
+        <div className={entrandoMesa ? "pointer-events-none opacity-60" : undefined}>
           <GrillaMesas
             mesasIniciales={mesasIniciales}
             sedeId={sedeId}
@@ -79,23 +68,23 @@ export function SelectorOrigen({ mesasIniciales, sedeId }: SelectorOrigenProps) 
       </ClayCard>
 
       <div className="flex flex-wrap gap-4">
+        <ClayButton type="button" variant="secondary" size="lg" onClick={() => setModalDomicilioAbierto(true)}>
+          Domicilio
+        </ClayButton>
         <ClayButton
           type="button"
           variant="secondary"
           size="lg"
-          onClick={() => setModalDomicilioAbierto(true)}
+          onClick={() => router.push("/pedido/nuevo?canal=llevar")}
         >
-          Domicilio
-        </ClayButton>
-        <ClayButton type="button" variant="secondary" size="lg" disabled={creandoLlevar} onClick={alCrearLlevar}>
-          {creandoLlevar ? "Creando…" : "Para llevar"}
+          Para llevar
         </ClayButton>
       </div>
 
       <FormularioDomicilio
         abierto={modalDomicilioAbierto}
         onCerrar={() => setModalDomicilioAbierto(false)}
-        onCreado={(pedidoId) => router.push(`/pedido/${pedidoId}`)}
+        onCreado={(clienteId) => router.push(`/pedido/nuevo?canal=domicilio&clienteId=${clienteId}`)}
       />
     </div>
   );
@@ -104,7 +93,7 @@ export function SelectorOrigen({ mesasIniciales, sedeId }: SelectorOrigenProps) 
 interface FormularioDomicilioProps {
   abierto: boolean;
   onCerrar: () => void;
-  onCreado: (pedidoId: string) => void;
+  onCreado: (clienteId: string) => void;
 }
 
 function FormularioDomicilio({ abierto, onCerrar, onCreado }: FormularioDomicilioProps) {
@@ -130,7 +119,7 @@ function FormularioDomicilio({ abierto, onCerrar, onCreado }: FormularioDomicili
       return;
     }
     reset();
-    onCreado(resultado.valor.pedidoId);
+    onCreado(resultado.valor.clienteId);
   });
 
   return (
@@ -176,7 +165,7 @@ function FormularioDomicilio({ abierto, onCerrar, onCreado }: FormularioDomicili
             Cancelar
           </ClayButton>
           <ClayButton type="submit" variant="primary" disabled={isSubmitting}>
-            {isSubmitting ? "Creando…" : "Crear pedido"}
+            {isSubmitting ? "Creando…" : "Continuar"}
           </ClayButton>
         </div>
       </form>
