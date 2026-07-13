@@ -243,6 +243,8 @@ criollitas-os/
 │   ├── (cajera)/
 │   │   ├── layout.tsx
 │   │   ├── pedidos/                  # Cola de pedidos por cobrar
+│   │   ├── pedidos-en-curso/         # Domicilio/llevar en curso de toda la sede — ver y
+│   │   │                             #   cancelar, nunca agregar productos (bloque C)
 │   │   ├── cobrar/[pedidoId]/
 │   │   ├── turno/
 │   │   │   ├── abrir/
@@ -256,6 +258,7 @@ criollitas-os/
 │   │   │   ├── nuevo/                # Carrito sin pedido creado aún — el pedido solo
 │   │   │   │                         #   se crea al confirmar el primer producto
 │   │   │   └── [pedidoId]/           # Editor de pedido ya existente (con ≥1 producto)
+│   │   ├── mis-pedidos/               # Domicilio/llevar propios en curso (bloque C)
 │   │   └── mesas/                    # (bloque 5) selección de mesa — reutiliza GrillaMesas
 │   ├── (cocina)/
 │   │   └── kds/
@@ -318,7 +321,7 @@ criollitas-os/
 - Toda tabla con datos operativos lleva `sede_id`.
 - Se define una función `public.current_sede_id()` y `public.current_rol()` que leen del `raw_app_meta_data` del JWT.
 - **Vendedora:** SELECT/INSERT/UPDATE sobre pedidos de su sede que ella creó (`vendedora_id = auth.uid()`), mientras `estado` no sea `cobrado`, `cerrado`, `anulado` ni `cancelado` (permite seguir agregando ítems después de enviar a cocina). Puede cancelar su propio pedido en cualquier estado previo a `cobrado` (RPC `cancelar_pedido`, motivo obligatorio) — distinto de `anular_pedido` (admin, exclusivo de pedidos ya cobrados, §2.2); si el canal es `mesa`, la mesa se libera automáticamente en la misma transacción.
-- **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. Sobre `pedidos` solo puede escribir `estado` (limitado al literal `cobrado`, desde `listo`/`entregado`); ninguna otra columna, vía el mismo patrón de trigger de columnas que cocina/vendedora. Un solo turno `abierto` a la vez (índice único parcial); su UPDATE de `turnos_caja` está restringido por trigger a los campos de cierre. `pagos`/`movimientos_caja` son de solo INSERT/SELECT (inmutables, sin política de UPDATE/DELETE para ningún rol). `impresiones` admite además UPDATE, para reintentar una impresión fallida. `cobrarPedido`/`cerrarTurno` son RPCs atómicos con lock explícito sobre la fila que protegen (`turnos_caja`/`pedidos`), evitando condiciones de carrera entre un cobro y un cierre de turno concurrentes.
+- **Cajera:** SELECT sobre todos los pedidos de su sede en cualquier estado no terminal (`abierto`/`enviado_cocina`/`en_preparacion`/`listo`/`entregado`) más `cobrado`/`cancelado` — ampliado en el bloque C para que pueda ver y cancelar pedidos de domicilio/llevar en curso, no solo cobrarlos. Sobre `pedidos` puede escribir `estado` hacia `cobrado` (desde `listo`/`entregado`) o hacia `cancelado` (desde cualquier estado no terminal, junto con `motivo_cancelacion` en la misma sentencia vía `cancelar_pedido`, RPC compartido con la vendedora); ninguna otra columna, vía el mismo patrón de trigger de columnas que cocina/vendedora. No agrega productos: sin política de INSERT sobre `pedido_items`. Un solo turno `abierto` a la vez (índice único parcial); su UPDATE de `turnos_caja` está restringido por trigger a los campos de cierre. `pagos`/`movimientos_caja` son de solo INSERT/SELECT (inmutables, sin política de UPDATE/DELETE para ningún rol). `impresiones` admite además UPDATE, para reintentar una impresión fallida. `cobrarPedido`/`cerrarTurno` son RPCs atómicos con lock explícito sobre la fila que protegen (`turnos_caja`/`pedidos`), evitando condiciones de carrera entre un cobro y un cierre de turno concurrentes.
 - **Administrador:** acceso total a su(s) sede(s). Un admin global (`is_super_admin = true`) ve todas.
 - **Cocina:** rol especial `cocina`, SELECT sobre pedidos `enviado_cocina`/`en_preparacion`/`listo`. UPDATE de `pedido_items` restringido a nivel de columna a `estado_item`/`tiempo_listo_en`. Sobre `pedidos` solo puede escribir `estado` (limitado a esos mismos 3 valores) y `enviado_cocina_en`; ninguna otra columna, vía un trigger que rechaza el UPDATE si cambia algo más. Un RPC atómico hace ambas escrituras (ítem + agregado) en una sola sentencia: el agregado del pedido se recalcula solo cuando todos sus ítems coinciden.
 
