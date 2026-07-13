@@ -19,10 +19,13 @@ const ETIQUETA_ESTADO_ITEM: Record<ItemConfirmadoVista["estadoItem"], string> = 
 interface CarritoPedidoProps {
   pedido: PedidoVista;
   itemsConfirmados: ItemConfirmadoVista[];
+  /** Pedido en estado terminal (cobrado/cerrado/anulado): el carrito en curso
+   *  puede tener ítems sin enviar, pero el botón de confirmar queda bloqueado. */
+  soloLectura?: boolean;
 }
 
 /** Panel del carrito en curso (zustand) + ítems ya confirmados (solo lectura) + total. */
-export function CarritoPedido({ pedido, itemsConfirmados }: CarritoPedidoProps) {
+export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false }: CarritoPedidoProps) {
   const router = useRouter();
   const { items, quitar, cambiarCantidad, vaciar } = useCarritoStore();
   const [enviando, setEnviando] = useState(false);
@@ -45,7 +48,7 @@ export function CarritoPedido({ pedido, itemsConfirmados }: CarritoPedidoProps) 
   const textoBoton = esPrimerEnvio ? "Enviar a cocina" : "Agregar a la comanda";
 
   async function confirmar() {
-    if (items.length === 0) return;
+    if (items.length === 0 || soloLectura) return;
     setError(null);
     setEnviando(true);
     const resultado = await confirmarItemsPedido(pedido.id, {
@@ -157,15 +160,19 @@ export function CarritoPedido({ pedido, itemsConfirmados }: CarritoPedidoProps) 
         </p>
       ) : null}
 
-      <ClayButton
-        type="button"
-        variant="primary"
-        size="lg"
-        disabled={items.length === 0 || enviando}
-        onClick={confirmar}
-      >
-        {enviando ? "Enviando…" : textoBoton}
-      </ClayButton>
+      {soloLectura ? (
+        <p className="text-sm text-text-secondary">Este pedido ya no se puede modificar.</p>
+      ) : (
+        <ClayButton
+          type="button"
+          variant="primary"
+          size="lg"
+          disabled={items.length === 0 || enviando}
+          onClick={confirmar}
+        >
+          {enviando ? "Enviando…" : textoBoton}
+        </ClayButton>
+      )}
     </aside>
   );
 }

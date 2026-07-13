@@ -13,7 +13,12 @@ interface PedidoEditorProps {
   modificadores: ModificadorFila[];
 }
 
-/** Orquesta `/pedido/[id]`: menú a la izquierda, carrito a la derecha. */
+const ESTADOS_TERMINALES = new Set(["cobrado", "cerrado", "anulado"]);
+
+/** Orquesta `/pedido/[id]`: menú a la izquierda, carrito a la derecha.
+ *  Si el pedido ya está en un estado terminal (cobrado/cerrado/anulado, CLAUDE.md
+ *  §13.7), el menú no se renderiza — evita que la vendedora arme un carrito entero
+ *  para enterarse solo al confirmar que el pedido ya no admite cambios. */
 export function PedidoEditor({
   pedido,
   itemsConfirmados,
@@ -21,12 +26,19 @@ export function PedidoEditor({
   productos,
   modificadores,
 }: PedidoEditorProps) {
+  const soloLectura = ESTADOS_TERMINALES.has(pedido.estado);
   return (
     <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
       <div className="flex-1">
-        <SelectorMenu categorias={categorias} productos={productos} modificadores={modificadores} />
+        {soloLectura ? (
+          <p className="rounded-clay-md bg-brand-chocolate-2 p-6 text-center text-sm text-brand-crema/70">
+            Este pedido ya fue cerrado y no admite más cambios.
+          </p>
+        ) : (
+          <SelectorMenu categorias={categorias} productos={productos} modificadores={modificadores} />
+        )}
       </div>
-      <CarritoPedido pedido={pedido} itemsConfirmados={itemsConfirmados} />
+      <CarritoPedido pedido={pedido} itemsConfirmados={itemsConfirmados} soloLectura={soloLectura} />
     </div>
   );
 }
