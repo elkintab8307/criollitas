@@ -2,16 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { formatearCOP, montoDesdePesos, multiplicar, sumar } from "@/lib/money";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayBadge } from "@/components/ui/ClayBadge";
-import { ClayModal } from "@/components/ui/ClayModal";
-import { ClayInput } from "@/components/ui/ClayInput";
+import { ModalCancelarPedido } from "@/components/pedido/ModalCancelarPedido";
 import { useCarritoStore } from "@/lib/pedido/carritoStore";
 import { confirmarItemsPedido, cancelarPedido } from "@/app/(vendedora)/pedido/actions";
-import { motivoCancelacionSchema, type MotivoCancelacionInput } from "@/lib/validations/cancelacion";
 import type { ItemConfirmadoVista, PedidoVista } from "@/components/pedido/tipos";
 
 const ETIQUETA_ESTADO_ITEM: Record<ItemConfirmadoVista["estadoItem"], string> = {
@@ -36,34 +32,6 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false }:
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalCancelarAbierto, setModalCancelarAbierto] = useState(false);
-  const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
-  const [cancelando, setCancelando] = useState(false);
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<MotivoCancelacionInput>({ resolver: zodResolver(motivoCancelacionSchema) });
-
-  function cerrarModalCancelar() {
-    reset();
-    setErrorCancelar(null);
-    setModalCancelarAbierto(false);
-  }
-
-  const onSubmitCancelar = handleSubmit(async (datos) => {
-    setErrorCancelar(null);
-    setCancelando(true);
-    const resultado = await cancelarPedido(pedido.id, datos);
-    setCancelando(false);
-    if (!resultado.ok) {
-      setErrorCancelar(resultado.error.mensaje);
-      return;
-    }
-    reset();
-    setModalCancelarAbierto(false);
-    router.push("/inicio");
-  });
 
   const totalCarritoEnCurso = sumar(
     ...items.map((item) =>
@@ -213,33 +181,16 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false }:
         </>
       )}
 
-      <ClayModal abierto={modalCancelarAbierto} titulo="Cancelar pedido" onCerrar={cerrarModalCancelar}>
-        <form onSubmit={onSubmitCancelar} className="flex flex-col gap-4" noValidate>
-          <p className="text-sm text-text-secondary">
-            El pedido #{pedido.numeroCorto} se cancelará y no se podrá cobrar.
-            {pedido.canal === "mesa" ? " La mesa quedará libre." : ""}
-          </p>
-          <ClayInput
-            label="Motivo de la cancelación"
-            placeholder="Ej: el cliente se retiró"
-            error={errors.motivo?.message}
-            {...register("motivo")}
-          />
-          {errorCancelar ? (
-            <p role="alert" className="text-sm text-brand-tomate-2">
-              {errorCancelar}
-            </p>
-          ) : null}
-          <div className="flex justify-end gap-3">
-            <ClayButton type="button" variant="ghost" onClick={cerrarModalCancelar}>
-              Volver
-            </ClayButton>
-            <ClayButton type="submit" variant="destructive" disabled={cancelando}>
-              {cancelando ? "Cancelando…" : "Confirmar cancelación"}
-            </ClayButton>
-          </div>
-        </form>
-      </ClayModal>
+      <ModalCancelarPedido
+        pedido={pedido}
+        abierto={modalCancelarAbierto}
+        onCerrar={() => setModalCancelarAbierto(false)}
+        onCancelar={cancelarPedido}
+        onExito={() => {
+          setModalCancelarAbierto(false);
+          router.push("/inicio");
+        }}
+      />
     </aside>
   );
 }

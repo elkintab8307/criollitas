@@ -28,11 +28,13 @@ export const PREFIJOS_POR_ROL: Array<{ prefijo: string; roles: Rol[] }> = [
   { prefijo: "/auditoria", roles: ["admin"] },
   { prefijo: "/anular", roles: ["admin"] },
   { prefijo: "/pedidos", roles: ["cajera"] },
+  { prefijo: "/pedidos-en-curso", roles: ["cajera"] },
   { prefijo: "/cobrar", roles: ["cajera"] },
   { prefijo: "/turno", roles: ["cajera"] },
   { prefijo: "/mi-turno", roles: ["cajera"] },
   { prefijo: "/inicio", roles: ["vendedora"] },
   { prefijo: "/pedido", roles: ["vendedora"] },
+  { prefijo: "/mis-pedidos", roles: ["vendedora"] },
   { prefijo: "/mesas", roles: ["admin"] },
   { prefijo: "/kds", roles: ["cocina", "admin"] },
 ];
