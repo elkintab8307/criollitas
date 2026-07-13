@@ -62,11 +62,26 @@ async function enviarAlPrintBridge(
 
 /** Arma el ticket y lo manda al print-bridge, después de que el cobro ya se
  *  confirmó (CLAUDE.md §10.2: el pago nunca depende de que la impresora
- *  esté disponible). Si algo falla aquí, no revierte el cobro. */
+ *  esté disponible). Nunca lanza: cualquier error en este camino (incluida
+ *  la propia lectura/inserción en BD, no solo la llamada HTTP) se traga
+ *  aquí — un pedido ya cobrado no debe convertirse en un fallo visible del
+ *  Server Action por un problema de impresión. cobrarPedido llama a esta
+ *  función sin esperar nada de su resultado. */
 async function intentarImprimirTirilla(
   supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   pedidoId: string,
-  pagos: CobrarPedidoInput["pagos"],
+): Promise<void> {
+  try {
+    await intentarImprimirTirillaInterno(supabase, pedidoId);
+  } catch {
+    // El cobro ya está confirmado; un fallo aquí (BD transitoria, etc.) no
+    // debe propagar y aparentar que cobrarPedido falló.
+  }
+}
+
+async function intentarImprimirTirillaInterno(
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  pedidoId: string,
 ): Promise<void> {
   const { data: pedidoFila } = await supabase
     .from("pedidos")
@@ -103,6 +118,16 @@ async function intentarImprimirTirilla(
     : { data: [] as { id: string; nombre: string }[] };
   const nombrePorId = new Map((productosFilas ?? []).map((p) => [p.id, p.nombre]));
 
+  // Los pagos se leen de lo que cobrar_pedido efectivamente insertó, no del
+  // input del cliente: hoy son iguales (el RPC solo hace un pass-through
+  // tras validar el cuadre), pero si el RPC alguna vez ajusta/rechaza una
+  // fila de pago, la tirilla debe reflejar lo que quedó guardado, no lo que
+  // se pidió cobrar.
+  const { data: pagosFilas } = await supabase
+    .from("pagos")
+    .select("metodo, monto_cop")
+    .eq("pedido_id", pedidoId);
+
   const datosTicket: DatosTicket = {
     sedeNombre: sedeFila?.nombre ?? "Criollitas",
     numeroCorto: pedidoFila.numero_corto,
@@ -115,7 +140,7 @@ async function intentarImprimirTirilla(
     })),
     subtotalCop: BigInt(pedidoFila.subtotal_cop),
     totalCop: BigInt(pedidoFila.total_cop),
-    pagos: pagos.map((p) => ({ metodo: p.metodo, montoCop: montoDesdePesos(p.montoPesos) })),
+    pagos: (pagosFilas ?? []).map((p) => ({ metodo: p.metodo, montoCop: BigInt(p.monto_cop) })),
   };
 
   const contenidoBase64 = codificarEscPos(construirLineasTicket(datosTicket));
@@ -173,7 +198,7 @@ export async function cobrarPedido(
     });
   }
 
-  await intentarImprimirTirilla(supabase, pedidoId, parsed.data.pagos);
+  await intentarImprimirTirilla(supabase, pedidoId);
 
   revalidatePath("/pedidos");
   revalidatePath(`/cobrar/${pedidoId}`);
