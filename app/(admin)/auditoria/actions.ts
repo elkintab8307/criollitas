@@ -3,6 +3,7 @@
 import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
+import { TABLAS_AUDITADAS } from "@/lib/auditoria";
 
 const FILAS_POR_PAGINA = 30;
 
@@ -33,8 +34,6 @@ export interface AuditoriaVista {
   usuarioNombre: string;
   creadoEn: string;
 }
-
-const TABLAS_AUDITADAS = ["pedidos", "pagos", "turnos_caja", "movimientos_caja", "anulaciones", "usuarios"];
 
 export async function listarAuditoria(
   filtros: FiltrosAuditoria,
@@ -83,4 +82,3 @@ export async function listarAuditoria(
   );
 }
 
-export { TABLAS_AUDITADAS };
