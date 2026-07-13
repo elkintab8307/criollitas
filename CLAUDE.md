@@ -237,7 +237,8 @@ criollitas-os/
 │   │   │   ├── tiempos/
 │   │   │   ├── arqueos/
 │   │   │   └── anulaciones/
-│   │   └── auditoria/
+│   │   ├── auditoria/
+│   │   └── anular/                   # búsqueda por número de pedido + anulación con motivo
 │   ├── (cajera)/
 │   │   ├── layout.tsx
 │   │   ├── pedidos/                  # Cola de pedidos por cobrar
@@ -389,7 +390,7 @@ fn_reporte_rango(sede_id, desde, hasta)
 
 **Reglas de dinero:** todos los montos se almacenan como `bigint` en **centavos de peso colombiano** (`_cop` en el nombre). Nunca `numeric` con decimales, nunca `float`. La UI convierte en el borde.
 
-**Auditoría:** un trigger `pg_audit_trigger` en cada tabla operativa escribe en `auditoria` con el `diff` JSON. Insertos, updates y deletes quedan registrados con `usuario_id = auth.uid()`.
+**Auditoría:** un trigger `pg_audit_trigger` (bloque 8) escribe en `auditoria` con el `diff` JSON (`before`/`after`). Insertos, updates y deletes quedan registrados con `usuario_id = auth.uid()`. Por ahora solo está adjunto a las tablas financieras/sensibles: `pedidos`, `pagos`, `turnos_caja`, `movimientos_caja`, `anulaciones`, `usuarios` — el resto de tablas operativas (mesas, productos, categorías, modificadores, sedes) ya tienen soft-delete y se instrumentan si hace falta más adelante. `pagos`, `movimientos_caja` y `anulaciones` no tienen columna `sede_id` propia; el trigger la resuelve vía `turno_id`/`pedido_id` como respaldo para que sus filas sigan siendo visibles bajo RLS (`auditoria_admin_select` exige `sede_id = current_sede_id()`, que nunca es `null`).
 
 ---
 
