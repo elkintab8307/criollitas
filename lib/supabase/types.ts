@@ -847,6 +847,16 @@ export type Database = {
           total_cop: number
         }[]
       }
+      fn_reporte_categorias: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          categoria_id: string
+          categoria_nombre: string
+          ingreso_cop: number
+          porcentaje: number
+          unidades: number
+        }[]
+      }
       fn_reporte_mapa_calor_horas: {
         Args: { p_desde: string; p_hasta: string }
         Returns: {
@@ -863,6 +873,17 @@ export type Database = {
           num_pagos: number
           porcentaje: number
           total_cop: number
+        }[]
+      }
+      fn_reporte_productos: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          categoria_id: string
+          categoria_nombre: string
+          ingreso_cop: number
+          nombre: string
+          producto_id: string
+          unidades: number
         }[]
       }
       fn_reporte_ticket_promedio_canal: {
