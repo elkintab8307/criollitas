@@ -506,6 +506,7 @@ export type Database = {
           estado: Database["public"]["Enums"]["estado_pedido"]
           id: string
           mesa_id: string | null
+          motivo_cancelacion: string | null
           notas: string | null
           numero_corto: number
           propina_cop: number
@@ -524,6 +525,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["estado_pedido"]
           id?: string
           mesa_id?: string | null
+          motivo_cancelacion?: string | null
           notas?: string | null
           numero_corto: number
           propina_cop?: number
@@ -542,6 +544,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["estado_pedido"]
           id?: string
           mesa_id?: string | null
+          motivo_cancelacion?: string | null
           notas?: string | null
           numero_corto?: number
           propina_cop?: number
@@ -828,6 +831,10 @@ export type Database = {
         Args: { p_motivo: string; p_pedido_id: string }
         Returns: undefined
       }
+      cancelar_pedido: {
+        Args: { p_motivo: string; p_pedido_id: string }
+        Returns: undefined
+      }
       cerrar_turno: {
         Args: { p_efectivo_declarado_cop: number; p_turno_id: string }
         Returns: undefined
@@ -959,6 +966,7 @@ export type Database = {
         | "cobrado"
         | "cerrado"
         | "anulado"
+        | "cancelado"
       estado_turno: "abierto" | "cerrado"
       metodo_pago:
         | "efectivo"
@@ -1111,6 +1119,7 @@ export const Constants = {
         "cobrado",
         "cerrado",
         "anulado",
+        "cancelado",
       ],
       estado_turno: ["abierto", "cerrado"],
       metodo_pago: [
