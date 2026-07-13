@@ -341,6 +341,10 @@ modificadores        (id, producto_id, grupo, nombre, precio_delta_cop, obligato
                      -- grupo agrupa opciones excluyentes (ej. "Queso": campesino|mozzarella)
 mesas                (id, sede_id, numero, nombre, capacidad, activa, estado)
                      -- estado ∈ {libre, ocupada, reservada}
+                     -- libre→ocupada: automático al confirmar el primer ítem del
+                     --   pedido (no al crear el pedido); ocupada→libre: automático
+                     --   al cobrar el pedido (cobrar_pedido). "reservada" es manual,
+                     --   solo el admin la fija/quita desde /mesas.
 clientes_domicilio   (id, sede_id, nombre, telefono, direccion, referencia, notas)
 
 pedidos              (id, sede_id, numero_corto, canal, mesa_id, cliente_id,
