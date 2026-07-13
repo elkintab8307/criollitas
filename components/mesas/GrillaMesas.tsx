@@ -15,8 +15,8 @@ interface GrillaMesasProps {
   sedeId: string;
   puedeEditar: boolean;
   /** "gestion" (default): clic abre el editor de admin. "seleccion": clic
-   *  en una mesa libre y activa llama `onSeleccionarMesa` (flujo de la
-   *  vendedora al iniciar un pedido). */
+   *  en una mesa libre u ocupada (activa) llama `onSeleccionarMesa` (flujo
+   *  de la vendedora al iniciar o retomar un pedido). */
   modo?: "gestion" | "seleccion";
   onSeleccionarMesa?: (mesa: MesaVista) => void;
 }
@@ -98,8 +98,11 @@ export function GrillaMesas({
 
   function alClicMesa(mesa: MesaVista): (() => void) | undefined {
     if (modo === "seleccion") {
-      if (!mesa.activa || mesa.estado !== "libre") return undefined;
-      return () => onSeleccionarMesa?.(mesa);
+      if (!mesa.activa) return undefined;
+      if (mesa.estado === "libre" || mesa.estado === "ocupada") {
+        return () => onSeleccionarMesa?.(mesa);
+      }
+      return undefined;
     }
     return puedeEditar ? () => abrirExistente(mesa) : undefined;
   }

@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { crearPedidoDomicilio, crearPedidoLlevar, crearPedidoMesa } from "@/app/(vendedora)/inicio/actions";
+import {
+  crearPedidoDomicilio,
+  crearPedidoLlevar,
+  crearPedidoMesa,
+  entrarPedidoDeMesa,
+} from "@/app/(vendedora)/inicio/actions";
 import { clienteDomicilioSchema, type ClienteDomicilioInput } from "@/lib/validations/pedido";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayCard } from "@/components/ui/ClayCard";
@@ -30,7 +35,8 @@ export function SelectorOrigen({ mesasIniciales, sedeId }: SelectorOrigenProps) 
     if (creandoMesa) return;
     setError(null);
     setCreandoMesa(true);
-    const resultado = await crearPedidoMesa(mesa.id);
+    const resultado =
+      mesa.estado === "ocupada" ? await entrarPedidoDeMesa(mesa.id) : await crearPedidoMesa(mesa.id);
     if (!resultado.ok) {
       setCreandoMesa(false);
       setError(resultado.error.mensaje);
