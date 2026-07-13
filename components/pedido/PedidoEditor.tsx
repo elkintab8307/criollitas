@@ -15,12 +15,13 @@ interface PedidoEditorProps {
   modificadores: ModificadorFila[];
 }
 
-const ESTADOS_TERMINALES = new Set(["cobrado", "cerrado", "anulado"]);
+const ESTADOS_TERMINALES = new Set(["cobrado", "cerrado", "anulado", "cancelado"]);
 
 /** Orquesta `/pedido/[id]`: menú a la izquierda, carrito a la derecha.
- *  Si el pedido ya está en un estado terminal (cobrado/cerrado/anulado, CLAUDE.md
- *  §13.7), el menú no se renderiza — evita que la vendedora arme un carrito entero
- *  para enterarse solo al confirmar que el pedido ya no admite cambios. */
+ *  Si el pedido ya está en un estado terminal (cobrado/cerrado/anulado/cancelado,
+ *  CLAUDE.md §13.7), el menú no se renderiza — evita que la vendedora arme un
+ *  carrito entero para enterarse solo al confirmar que el pedido ya no admite
+ *  cambios. */
 export function PedidoEditor({
   pedido,
   itemsConfirmados,
