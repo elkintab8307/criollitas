@@ -252,7 +252,10 @@ criollitas-os/
 │   ├── (vendedora)/
 │   │   ├── layout.tsx
 │   │   ├── inicio/                   # Selector origen: mesa / domicilio / llevar
-│   │   ├── pedido/[pedidoId]/        # Editor de pedido en curso
+│   │   ├── pedido/
+│   │   │   ├── nuevo/                # Carrito sin pedido creado aún — el pedido solo
+│   │   │   │                         #   se crea al confirmar el primer producto
+│   │   │   └── [pedidoId]/           # Editor de pedido ya existente (con ≥1 producto)
 │   │   └── mesas/                    # (bloque 5) selección de mesa — reutiliza GrillaMesas
 │   ├── (cocina)/
 │   │   └── kds/
