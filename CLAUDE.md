@@ -317,7 +317,7 @@ criollitas-os/
 
 - Toda tabla con datos operativos lleva `sede_id`.
 - Se define una función `public.current_sede_id()` y `public.current_rol()` que leen del `raw_app_meta_data` del JWT.
-- **Vendedora:** SELECT/INSERT/UPDATE sobre pedidos de su sede que ella creó (`vendedora_id = auth.uid()`), mientras `estado` no sea `cobrado`, `cerrado` ni `anulado` (permite seguir agregando ítems después de enviar a cocina).
+- **Vendedora:** SELECT/INSERT/UPDATE sobre pedidos de su sede que ella creó (`vendedora_id = auth.uid()`), mientras `estado` no sea `cobrado`, `cerrado`, `anulado` ni `cancelado` (permite seguir agregando ítems después de enviar a cocina). Puede cancelar su propio pedido en cualquier estado previo a `cobrado` (RPC `cancelar_pedido`, motivo obligatorio) — distinto de `anular_pedido` (admin, exclusivo de pedidos ya cobrados, §2.2); si el canal es `mesa`, la mesa se libera automáticamente en la misma transacción.
 - **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. Sobre `pedidos` solo puede escribir `estado` (limitado al literal `cobrado`, desde `listo`/`entregado`); ninguna otra columna, vía el mismo patrón de trigger de columnas que cocina/vendedora. Un solo turno `abierto` a la vez (índice único parcial); su UPDATE de `turnos_caja` está restringido por trigger a los campos de cierre. `pagos`/`movimientos_caja` son de solo INSERT/SELECT (inmutables, sin política de UPDATE/DELETE para ningún rol). `impresiones` admite además UPDATE, para reintentar una impresión fallida. `cobrarPedido`/`cerrarTurno` son RPCs atómicos con lock explícito sobre la fila que protegen (`turnos_caja`/`pedidos`), evitando condiciones de carrera entre un cobro y un cierre de turno concurrentes.
 - **Administrador:** acceso total a su(s) sede(s). Un admin global (`is_super_admin = true`) ve todas.
 - **Cocina:** rol especial `cocina`, SELECT sobre pedidos `enviado_cocina`/`en_preparacion`/`listo`. UPDATE de `pedido_items` restringido a nivel de columna a `estado_item`/`tiempo_listo_en`. Sobre `pedidos` solo puede escribir `estado` (limitado a esos mismos 3 valores) y `enviado_cocina_en`; ninguna otra columna, vía un trigger que rechaza el UPDATE si cambia algo más. Un RPC atómico hace ambas escrituras (ítem + agregado) en una sola sentencia: el agregado del pedido se recalcula solo cuando todos sus ítems coinciden.
@@ -353,13 +353,18 @@ clientes_domicilio   (id, sede_id, nombre, telefono, direccion, referencia, nota
 pedidos              (id, sede_id, numero_corto, canal, mesa_id, cliente_id,
                       vendedora_id, estado, subtotal_cop, descuento_cop,
                       propina_cop, total_cop, notas, creado_en, cerrado_en,
-                      enviado_cocina_en)
+                      enviado_cocina_en, motivo_cancelacion)
                      -- canal ∈ {mesa, domicilio, llevar}
                      -- enviado_cocina_en: se fija una sola vez, la primera vez
                      --   que el pedido entra a enviado_cocina (nunca se
                      --   sobreescribe); base del semáforo de tiempo del KDS
                      -- estado ∈ {abierto, enviado_cocina, en_preparacion,
-                     --           listo, entregado, cobrado, cerrado, anulado}
+                     --           listo, entregado, cobrado, cerrado, anulado,
+                     --           cancelado}
+                     -- motivo_cancelacion: solo se llena cuando estado=
+                     --   cancelado (RPC cancelar_pedido, vendedora, pre-cobro);
+                     --   distinto de anulado/anulaciones (admin, post-cobro,
+                     --   bloque 8) -- no genera fila en anulaciones.
 pedido_items         (id, pedido_id, producto_id, cantidad, precio_unit_cop,
                       subtotal_cop, notas, estado_item, tiempo_listo_en)
                      -- estado_item ∈ {pendiente, en_preparacion, listo, entregado}

@@ -6,7 +6,8 @@ export type EstadoPedido =
   | "entregado"
   | "cobrado"
   | "cerrado"
-  | "anulado";
+  | "anulado"
+  | "cancelado";
 export type EstadoItemPedido = "pendiente" | "en_preparacion" | "listo" | "entregado";
 export type CanalPedido = "mesa" | "domicilio" | "llevar";
 
