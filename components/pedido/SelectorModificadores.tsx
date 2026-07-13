@@ -61,12 +61,18 @@ export function SelectorModificadores({ producto, modificadores, onCerrar }: Sel
         copia.delete(mod.id);
         return copia;
       }
-      const seleccionadosEnGrupo = modificadores.filter(
-        (m) => (m.grupo ?? SIN_GRUPO) === clave && copia.has(m.id),
-      ).length;
-      if (seleccionadosEnGrupo >= limite) {
-        // Límite del grupo alcanzado (max_seleccion): no se agrega más.
-        return copia;
+      // Sin grupo (SIN_GRUPO) son adicionales independientes entre sí: cada
+      // uno es su propio interruptor, no comparten cupo de max_seleccion
+      // (ese campo es por-fila y no representa un límite compartido cuando
+      // no hay `grupo` real que agrupe opciones excluyentes).
+      if (clave !== SIN_GRUPO) {
+        const seleccionadosEnGrupo = modificadores.filter(
+          (m) => (m.grupo ?? SIN_GRUPO) === clave && copia.has(m.id),
+        ).length;
+        if (seleccionadosEnGrupo >= limite) {
+          // Límite del grupo alcanzado (max_seleccion): no se agrega más.
+          return copia;
+        }
       }
       copia.add(mod.id);
       return copia;
@@ -109,11 +115,12 @@ export function SelectorModificadores({ producto, modificadores, onCerrar }: Sel
             <fieldset key={clave} className="flex flex-col gap-2">
               <legend className="font-display text-sm font-medium text-text-primary">
                 {clave === SIN_GRUPO ? "Adicionales" : clave}
-                {esRadio ? " (elige 1)" : limite > 1 ? ` (máx. ${limite})` : ""}
+                {esRadio ? " (elige 1)" : clave !== SIN_GRUPO && limite > 1 ? ` (máx. ${limite})` : ""}
               </legend>
               {items.map((mod) => {
                 const marcado = esRadio ? seleccionUnica[clave] === mod.id : seleccionMultiple.has(mod.id);
-                const limiteAlcanzado = !esRadio && !marcado && seleccionadosEnGrupo >= limite;
+                const limiteAlcanzado =
+                  !esRadio && clave !== SIN_GRUPO && !marcado && seleccionadosEnGrupo >= limite;
                 return (
                   <label
                     key={mod.id}
