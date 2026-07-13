@@ -14,7 +14,7 @@ describe("siguienteEstadoTrasEnvio", () => {
   it("no transiciona si está listo", () => {
     expect(siguienteEstadoTrasEnvio("listo")).toBeNull();
   });
-  it("no transiciona si está entregado", () => {
-    expect(siguienteEstadoTrasEnvio("entregado")).toBeNull();
+  it("reabre a enviado_cocina si estaba entregado (la cocina no ve pedidos entregado)", () => {
+    expect(siguienteEstadoTrasEnvio("entregado")).toBe("enviado_cocina");
   });
 });

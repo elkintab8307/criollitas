@@ -120,35 +120,43 @@ export async function confirmarItemsPedido(
     });
   }
 
-  for (const fila of filasItems) {
-    const { data: itemInsertado, error: errorItem } = await supabase
-      .from("pedido_items")
-      .insert({
+  // Un solo INSERT de N filas en vez de N INSERTs sueltos en un loop: es una
+  // única sentencia SQL, todo o nada (si una fila falla por constraint, no
+  // queda ninguna a medias) — reduce la ventana en la que un reintento del
+  // cliente tras un fallo parcial duplicaría los ítems que sí alcanzaron a
+  // guardarse. `RETURNING` conserva el orden de los VALUES, así que el i-ésimo
+  // id devuelto corresponde al i-ésimo elemento de filasItems.
+  const { data: itemsInsertados, error: errorItems } = await supabase
+    .from("pedido_items")
+    .insert(
+      filasItems.map((fila) => ({
         pedido_id: pedidoId,
         producto_id: fila.producto_id,
         cantidad: fila.cantidad,
         precio_unit_cop: fila.precio_unit_cop,
         subtotal_cop: fila.subtotal_cop,
         notas: fila.notas,
-      })
-      .select("id")
-      .single();
-    if (errorItem || !itemInsertado) {
-      return err({ codigo: "BASE_DATOS", mensaje: "No pudimos guardar el pedido. Intenta de nuevo." });
-    }
-    if (fila.modificadorIds.length > 0) {
-      const filasMods = fila.modificadorIds.map((modificadorId) => ({
-        pedido_item_id: itemInsertado.id,
-        modificador_id: modificadorId,
-        precio_delta_cop: modificadorPorId.get(modificadorId)!.precio_delta_cop,
-      }));
-      const { error: errorMods } = await supabase.from("pedido_item_mods").insert(filasMods);
-      if (errorMods) {
-        return err({
-          codigo: "BASE_DATOS",
-          mensaje: "No pudimos guardar los adicionales. Intenta de nuevo.",
-        });
-      }
+      })),
+    )
+    .select("id");
+  if (errorItems || !itemsInsertados || itemsInsertados.length !== filasItems.length) {
+    return err({ codigo: "BASE_DATOS", mensaje: "No pudimos guardar el pedido. Intenta de nuevo." });
+  }
+
+  const filasMods = filasItems.flatMap((fila, indice) =>
+    fila.modificadorIds.map((modificadorId) => ({
+      pedido_item_id: itemsInsertados[indice]!.id,
+      modificador_id: modificadorId,
+      precio_delta_cop: modificadorPorId.get(modificadorId)!.precio_delta_cop,
+    })),
+  );
+  if (filasMods.length > 0) {
+    const { error: errorMods } = await supabase.from("pedido_item_mods").insert(filasMods);
+    if (errorMods) {
+      return err({
+        codigo: "BASE_DATOS",
+        mensaje: "No pudimos guardar los adicionales. Intenta de nuevo.",
+      });
     }
   }
 

@@ -12,7 +12,7 @@ const itemBase = {
 
 describe("useCarritoStore", () => {
   beforeEach(() => {
-    useCarritoStore.setState({ items: [] });
+    useCarritoStore.setState({ items: [], pedidoId: null });
   });
 
   it("agrega un ítem con una clave generada", () => {
@@ -47,6 +47,27 @@ describe("useCarritoStore", () => {
   it("vacía el carrito", () => {
     useCarritoStore.getState().agregar(itemBase);
     useCarritoStore.getState().vaciar();
+    expect(useCarritoStore.getState().items).toHaveLength(0);
+  });
+
+  it("asegurarPedido no toca el carrito si es el mismo pedido", () => {
+    useCarritoStore.getState().asegurarPedido("pedido-1");
+    useCarritoStore.getState().agregar(itemBase);
+    useCarritoStore.getState().asegurarPedido("pedido-1");
+    expect(useCarritoStore.getState().items).toHaveLength(1);
+  });
+
+  it("asegurarPedido vacía el carrito si el pedido cambió", () => {
+    useCarritoStore.getState().asegurarPedido("pedido-1");
+    useCarritoStore.getState().agregar(itemBase);
+    useCarritoStore.getState().asegurarPedido("pedido-2");
+    expect(useCarritoStore.getState().items).toHaveLength(0);
+    expect(useCarritoStore.getState().pedidoId).toBe("pedido-2");
+  });
+
+  it("asegurarPedido primera vez (pedidoId null) no vacía innecesariamente pero fija el pedido", () => {
+    useCarritoStore.getState().asegurarPedido("pedido-1");
+    expect(useCarritoStore.getState().pedidoId).toBe("pedido-1");
     expect(useCarritoStore.getState().items).toHaveLength(0);
   });
 });

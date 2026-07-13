@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { CarritoPedido } from "@/components/pedido/CarritoPedido";
 import { SelectorMenu } from "@/components/pedido/SelectorMenu";
+import { useCarritoStore } from "@/lib/pedido/carritoStore";
 import type { CategoriaFila, ModificadorFila, ProductoFila } from "@/components/menu/types";
 import type { ItemConfirmadoVista, PedidoVista } from "@/components/pedido/tipos";
 
@@ -27,6 +29,15 @@ export function PedidoEditor({
   modificadores,
 }: PedidoEditorProps) {
   const soloLectura = ESTADOS_TERMINALES.has(pedido.estado);
+
+  // El carrito es un store de módulo (singleton): sin esto, un carrito sin
+  // confirmar de otro pedido (navegación directa entre /pedido/[id] sin pasar
+  // por /inicio) quedaría visible aquí y sus ítems se agregarían al pedido
+  // equivocado al confirmar.
+  useEffect(() => {
+    useCarritoStore.getState().asegurarPedido(pedido.id);
+  }, [pedido.id]);
+
   return (
     <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
       <div className="flex-1">

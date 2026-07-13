@@ -20,18 +20,28 @@ export interface ItemCarrito {
 
 interface CarritoState {
   items: ItemCarrito[];
+  /** Pedido al que pertenece el carrito en curso. El store es un singleton de
+   *  módulo (vive mientras dure la sesión del navegador), así que sin esto un
+   *  carrito sin confirmar de un pedido queda visible al navegar a otro
+   *  pedido distinto — se agregarían sus ítems al pedido equivocado. */
+  pedidoId: string | null;
   agregar: (item: Omit<ItemCarrito, "clave">) => void;
   quitar: (clave: string) => void;
   cambiarCantidad: (clave: string, cantidad: number) => void;
   cambiarNota: (clave: string, nota: string) => void;
   vaciar: () => void;
+  /** Llamar al montar el editor de un pedido. Si el carrito pertenecía a un
+   *  pedido distinto (o no tenía ninguno asignado todavía), lo vacía antes de
+   *  asociarlo al nuevo; si ya era el mismo pedido, no toca los ítems. */
+  asegurarPedido: (pedidoId: string) => void;
 }
 
 /** Carrito de pedido en curso: estado UI local del cliente (CLAUDE.md §3),
  *  nunca la fuente de verdad de precios — se recalculan siempre en el
  *  servidor al confirmar. */
-export const useCarritoStore = create<CarritoState>((set) => ({
+export const useCarritoStore = create<CarritoState>((set, get) => ({
   items: [],
+  pedidoId: null,
   agregar: (item) =>
     set((state) => ({ items: [...state.items, { ...item, clave: crypto.randomUUID() }] })),
   quitar: (clave) => set((state) => ({ items: state.items.filter((i) => i.clave !== clave) })),
@@ -42,4 +52,8 @@ export const useCarritoStore = create<CarritoState>((set) => ({
   cambiarNota: (clave, nota) =>
     set((state) => ({ items: state.items.map((i) => (i.clave === clave ? { ...i, nota } : i)) })),
   vaciar: () => set({ items: [] }),
+  asegurarPedido: (pedidoId) => {
+    if (get().pedidoId === pedidoId) return;
+    set({ items: [], pedidoId });
+  },
 }));
