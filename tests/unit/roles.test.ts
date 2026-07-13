@@ -96,8 +96,8 @@ describe("reglaDePrefijo", () => {
     expect(reglaDePrefijo("/pedidos/queue")).toEqual({ prefijo: "/pedidos", roles: ["cajera"] });
   });
 
-  it("no confunde /pedido (vendedora) con /pedidos (cajera): /pedido/123 cae en la regla de vendedora", () => {
-    expect(reglaDePrefijo("/pedido/123")).toEqual({ prefijo: "/pedido", roles: ["vendedora"] });
+  it("no confunde /pedido (vendedora+cajera, bloque E) con /pedidos (solo cajera): /pedido/123 cae en su propia regla", () => {
+    expect(reglaDePrefijo("/pedido/123")).toEqual({ prefijo: "/pedido", roles: ["vendedora", "cajera"] });
   });
 });
 
@@ -141,8 +141,8 @@ describe("rutaPermitida", () => {
     expect(rutaPermitida("cajera", "/algo-sin-regla")).toBe(true);
   });
 
-  it("no confunde /pedido y /pedidos entre cajera y vendedora en ninguna dirección", () => {
-    expect(rutaPermitida("cajera", "/pedido/123")).toBe(false);
+  it("bloque E: la cajera puede tomar pedidos (/pedido), pero /pedidos (cola de cobro) sigue exclusiva de cajera", () => {
+    expect(rutaPermitida("cajera", "/pedido/123")).toBe(true);
     expect(rutaPermitida("vendedora", "/pedidos/queue")).toBe(false);
     expect(rutaPermitida("cajera", "/pedidos/queue")).toBe(true);
     expect(rutaPermitida("vendedora", "/pedido/123")).toBe(true);
