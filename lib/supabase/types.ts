@@ -717,6 +717,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      cerrar_turno: {
+        Args: { p_efectivo_declarado_cop: number; p_turno_id: string }
+        Returns: undefined
+      }
+      cobrar_pedido: {
+        Args: { p_pagos: Json; p_pedido_id: string; p_turno_id: string }
+        Returns: undefined
+      }
       current_rol: { Args: never; Returns: string }
       current_sede_id: { Args: never; Returns: string }
       recalcular_totales_pedido: {
