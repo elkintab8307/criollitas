@@ -152,33 +152,23 @@ export async function confirmarItemsPedido(
     }
   }
 
-  // Recalcula subtotal_cop/total_cop con un SUM fresco sobre pedido_items en
-  // la base de datos (función `recalcular_totales_pedido`, security invoker)
-  // en vez de sumar sobre el `pedido.subtotal_cop` leído al inicio de esta
-  // acción: esa lectura queda obsoleta si dos llamadas se solapan (doble tap,
-  // reintento de cliente) y un UPDATE client-side pisaría la otra.
+  // Recalcula subtotal_cop/total_cop con un SUM fresco sobre pedido_items y,
+  // en el mismo statement, aplica la transición de estado si corresponde
+  // (función `recalcular_totales_pedido`, security invoker). Una sola llamada
+  // RPC en vez de un UPDATE de totales seguido de un UPDATE de estado: dos
+  // round-trips separados dejarían una ventana donde el primero tiene éxito
+  // y el segundo falla o se pierde (misma red inestable que motiva el SUM
+  // fresco), dejando el pedido con totales al día pero sin avanzar a cocina.
+  const nuevoEstado = siguienteEstadoTrasEnvio(pedido.estado);
   const { error: errorTotales } = await supabase.rpc("recalcular_totales_pedido", {
     p_pedido_id: pedidoId,
+    p_nuevo_estado: nuevoEstado ?? undefined,
   });
   if (errorTotales) {
     return err({
       codigo: "BASE_DATOS",
-      mensaje: "Los productos se guardaron, pero no pudimos actualizar el total. Recarga la página.",
+      mensaje: "No pudimos guardar el pedido. Intenta de nuevo.",
     });
-  }
-
-  const nuevoEstado = siguienteEstadoTrasEnvio(pedido.estado);
-  if (nuevoEstado) {
-    const { error: errorEstado } = await supabase
-      .from("pedidos")
-      .update({ estado: nuevoEstado })
-      .eq("id", pedidoId);
-    if (errorEstado) {
-      return err({
-        codigo: "BASE_DATOS",
-        mensaje: "Los productos se guardaron, pero no pudimos enviar el pedido a cocina. Recarga la página.",
-      });
-    }
   }
 
   revalidatePath(`/pedido/${pedidoId}`);
