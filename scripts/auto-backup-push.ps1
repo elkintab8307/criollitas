@@ -6,22 +6,43 @@ $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";
 Set-Location $repoPath
 
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$status = git status --porcelain
-
-if ([string]::IsNullOrWhiteSpace($status)) {
-    "$timestamp - sin cambios, no se hace commit" | Add-Content -Path $logPath
-    exit 0
-}
-
 $tempOut = Join-Path $env:TEMP "criollitas-push-out.log"
 $tempErr = Join-Path $env:TEMP "criollitas-push-err.log"
 
-git add -A
-git commit -m "chore: auto-backup $(Get-Date -Format s)" 1> $tempOut 2> $tempErr
-Get-Content $tempOut, $tempErr -ErrorAction SilentlyContinue | Add-Content -Path $logPath
+function Log-Command {
+    param([string]$Label)
+    "$timestamp - ${Label}:" | Add-Content -Path $logPath
+    Get-Content $tempOut, $tempErr -ErrorAction SilentlyContinue | Add-Content -Path $logPath
+}
+
+$status = git status --porcelain
+if (-not [string]::IsNullOrWhiteSpace($status)) {
+    git add -A
+    git commit -m "chore: auto-backup $(Get-Date -Format s)" 1> $tempOut 2> $tempErr
+    Log-Command "commit"
+}
+
+git fetch origin 1> $tempOut 2> $tempErr
+Log-Command "fetch"
+
+git pull --rebase origin main 1> $tempOut 2> $tempErr
+$rebaseExit = $LASTEXITCODE
+Log-Command "pull --rebase"
+
+if ($rebaseExit -ne 0) {
+    git rebase --abort 2>$null
+    "$timestamp - rebase fallo (posible conflicto), abortado. Requiere revision manual." | Add-Content -Path $logPath
+    Remove-Item $tempOut, $tempErr -ErrorAction SilentlyContinue
+    exit 1
+}
+
+$ahead = git rev-list --count origin/main..HEAD
+if ($ahead -eq "0") {
+    "$timestamp - sin commits locales pendientes de subir" | Add-Content -Path $logPath
+    Remove-Item $tempOut, $tempErr -ErrorAction SilentlyContinue
+    exit 0
+}
 
 git push origin main 1> $tempOut 2> $tempErr
-$exitCode = $LASTEXITCODE
-"$timestamp - push exit code: $exitCode" | Add-Content -Path $logPath
-Get-Content $tempOut, $tempErr -ErrorAction SilentlyContinue | Add-Content -Path $logPath
+Log-Command "push (exit $LASTEXITCODE)"
 Remove-Item $tempOut, $tempErr -ErrorAction SilentlyContinue
