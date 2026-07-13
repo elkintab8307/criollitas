@@ -15,6 +15,8 @@ const TABS: TabReporte[] = [
   { href: "/reportes/canales", etiqueta: "Canales" },
   { href: "/reportes/productos", etiqueta: "Productos" },
   { href: "/reportes/categorias", etiqueta: "Categorías" },
+  { href: "/reportes/arqueos", etiqueta: "Arqueos" },
+  { href: "/reportes/anulaciones", etiqueta: "Anulaciones" },
 ];
 
 function esActivo(pathname: string, href: string): boolean {

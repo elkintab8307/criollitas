@@ -838,6 +838,30 @@ export type Database = {
       }
       current_rol: { Args: never; Returns: string }
       current_sede_id: { Args: never; Returns: string }
+      fn_reporte_anulaciones: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          anulacion_id: string
+          anulado_en: string
+          motivo: string
+          pedido_numero_corto: number
+          total_cop: number
+          usuario_nombre: string
+        }[]
+      }
+      fn_reporte_arqueos: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          abierto_en: string
+          cajera_nombre: string
+          cerrado_en: string
+          declarado_cop: number
+          diferencia_cop: number
+          efectivo_inicial_cop: number
+          esperado_cop: number
+          turno_id: string
+        }[]
+      }
       fn_reporte_canales: {
         Args: { p_desde: string; p_hasta: string }
         Returns: {

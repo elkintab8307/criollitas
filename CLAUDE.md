@@ -140,17 +140,17 @@ Se implementan todos los siguientes, calculados sobre vistas y funciones SQL en 
 - Ventas por hora del día (mapa de calor semanal para planificar personal).
 - Productos más vendidos (top N por unidades y por ingreso).
 - Categorías más vendidas.
-- Ranking de Vendedoras (ingreso generado, número de pedidos, ticket promedio).
-- Ranking de Cajeras (turnos, pedidos cobrados, diferencia promedio en arqueo).
+- ~~Ranking de Vendedoras (ingreso generado, número de pedidos, ticket promedio)~~ — fuera de alcance por decisión explícita del usuario (bloque 9b), no planificado en un bloque concreto.
+- ~~Ranking de Cajeras (turnos, pedidos cobrados, diferencia promedio en arqueo)~~ — fuera de alcance por decisión explícita del usuario (bloque 9b), no planificado en un bloque concreto.
 - Ticket promedio global y por canal.
-- Mesas más rentables (ingreso por mesa, rotación).
+- ~~Mesas más rentables (ingreso por mesa, rotación)~~ — fuera de alcance por decisión explícita del usuario (bloque 9b), no planificado en un bloque concreto.
 - Ventas por método de pago (participación %).
 - Ventas por canal (mesa / domicilio / para llevar).
 - Comparativos período contra período (semana vs. semana anterior, mes vs. mes anterior).
 - Historial de arqueos y diferencias.
 - Anulaciones y motivos.
-- Descuentos y promociones aplicados.
-- Tiempo promedio de preparación por producto (de `enviado_cocina` a `listo`).
+- ~~Descuentos y promociones aplicados~~ — fuera de alcance permanente por decisión explícita del usuario (el restaurante no usa esta función).
+- ~~Tiempo promedio de preparación por producto (de `enviado_cocina` a `listo`)~~ — fuera de alcance por decisión explícita del usuario (bloque 9b), no planificado en un bloque concreto.
 
 Exportación a CSV y XLSX en todos los reportes.
 
@@ -400,6 +400,12 @@ fn_reporte_canales(desde, hasta)
 fn_reporte_productos(desde, hasta)    -- todos los productos vendidos, sin filtrar por
                                        --   activo; ordena/trunca al top N en la UI
 fn_reporte_categorias(desde, hasta)
+
+-- Bloque 9c: caja y auditoría (descuentos/promociones aplicados queda
+-- fuera de alcance permanente por decisión explícita del usuario — el
+-- restaurante no usa esa función, no hay entidad "promoción" en el modelo)
+fn_reporte_arqueos(desde, hasta)      -- turnos 'cerrado', filtra por cerrado_en
+fn_reporte_anulaciones(desde, hasta)  -- filtra por anulaciones.creado_en
 ```
 
 **Reglas de dinero:** todos los montos se almacenan como `bigint` en **centavos de peso colombiano** (`_cop` en el nombre). Nunca `numeric` con decimales, nunca `float`. La UI convierte en el borde.
