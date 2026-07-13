@@ -229,6 +229,7 @@ criollitas-os/
 │   │   ├── reportes/
 │   │   │   ├── ventas/
 │   │   │   ├── productos/
+│   │   │   ├── categorias/
 │   │   │   ├── vendedoras/
 │   │   │   ├── cajeras/
 │   │   │   ├── metodos-pago/
@@ -392,9 +393,13 @@ fn_reporte_ticket_promedio_global(desde, hasta)
 fn_reporte_ticket_promedio_canal(desde, hasta)
 fn_reporte_metodos_pago(desde, hasta)
 fn_reporte_canales(desde, hasta)
--- Pendientes (bloques 9b/9c): vw_top_productos, vw_ranking_vendedoras,
--- fn_reporte_mesas_rentables, fn_reporte_tiempos_preparacion, fn_reporte_arqueos,
--- fn_reporte_anulaciones — nombres aspiracionales, aún no implementados.
+
+-- Bloque 9b: productos y categorías (ranking de Vendedoras/Cajeras, mesas
+-- más rentables y tiempo de preparación quedan fuera de alcance por
+-- decisión explícita del usuario — no planificados en un bloque concreto)
+fn_reporte_productos(desde, hasta)    -- todos los productos vendidos, sin filtrar por
+                                       --   activo; ordena/trunca al top N en la UI
+fn_reporte_categorias(desde, hasta)
 ```
 
 **Reglas de dinero:** todos los montos se almacenan como `bigint` en **centavos de peso colombiano** (`_cop` en el nombre). Nunca `numeric` con decimales, nunca `float`. La UI convierte en el borde.
