@@ -124,7 +124,7 @@ La Cajera abre turno declarando el efectivo inicial. Durante el turno, cada pago
 
 ### 2.5 KDS (Kitchen Display System)
 
-Vista sin scroll, pensada para pantalla vertical u horizontal en cocina. Cada tarjeta = un pedido. Muestra: número corto de pedido, origen (mesa X / domicilio / llevar), ítems con modificadores y notas, tiempo transcurrido con semáforo (verde <5min, amarillo 5-10, rojo >10). Toques: `en preparación` → `listo`. Se actualiza vía Supabase Realtime.
+Vista sin scroll, pensada para pantalla vertical u horizontal en cocina. Cada tarjeta = un pedido. Muestra: número corto de pedido, origen (mesa X / domicilio / llevar), ítems con modificadores y notas, tiempo transcurrido con semáforo (verde <5min, amarillo 5-10, rojo >10, medido desde `enviado_cocina_en`). Toques por ítem: `pendiente` → `en preparación` → `listo`; un toque sobre `listo` lo destoca a `en preparación` (corrección de error). El estado agregado del pedido se recalcula solo cuando todos sus ítems coinciden — un pedido `entregado` al que se le agrega un ítem tardío se reabre a `enviado_cocina` para que vuelva a ser visible en el KDS. Se actualiza vía Supabase Realtime.
 
 ### 2.6 Impresión de tirilla POS
 
@@ -313,7 +313,7 @@ criollitas-os/
 - **Vendedora:** SELECT/INSERT/UPDATE sobre pedidos de su sede que ella creó (`vendedora_id = auth.uid()`), mientras `estado` no sea `cobrado`, `cerrado` ni `anulado` (permite seguir agregando ítems después de enviar a cocina).
 - **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. INSERT sobre `pagos`, `turnos_caja`, `movimientos_caja`. UPDATE sobre `pedidos` para cambiar a `cobrado`.
 - **Administrador:** acceso total a su(s) sede(s). Un admin global (`is_super_admin = true`) ve todas.
-- **Cocina:** rol especial `cocina`, SELECT sobre pedidos `enviado_cocina`/`en_preparacion`/`listo`, UPDATE solo del campo `estado_item`.
+- **Cocina:** rol especial `cocina`, SELECT sobre pedidos `enviado_cocina`/`en_preparacion`/`listo`. UPDATE de `pedido_items` restringido a nivel de columna a `estado_item`/`tiempo_listo_en`. Sobre `pedidos` solo puede escribir `estado` (limitado a esos mismos 3 valores) y `enviado_cocina_en`; ninguna otra columna, vía un trigger que rechaza el UPDATE si cambia algo más. Un RPC atómico hace ambas escrituras (ítem + agregado) en una sola sentencia: el agregado del pedido se recalcula solo cuando todos sus ítems coinciden.
 
 Cada política se implementa en su migración correspondiente y se prueba con un test E2E que intenta violarla desde el rol equivocado y espera un 401/403.
 
@@ -341,8 +341,12 @@ clientes_domicilio   (id, sede_id, nombre, telefono, direccion, referencia, nota
 
 pedidos              (id, sede_id, numero_corto, canal, mesa_id, cliente_id,
                       vendedora_id, estado, subtotal_cop, descuento_cop,
-                      propina_cop, total_cop, notas, creado_en, cerrado_en)
+                      propina_cop, total_cop, notas, creado_en, cerrado_en,
+                      enviado_cocina_en)
                      -- canal ∈ {mesa, domicilio, llevar}
+                     -- enviado_cocina_en: se fija una sola vez, la primera vez
+                     --   que el pedido entra a enviado_cocina (nunca se
+                     --   sobreescribe); base del semáforo de tiempo del KDS
                      -- estado ∈ {abierto, enviado_cocina, en_preparacion,
                      --           listo, entregado, cobrado, cerrado, anulado}
 pedido_items         (id, pedido_id, producto_id, cantidad, precio_unit_cop,
