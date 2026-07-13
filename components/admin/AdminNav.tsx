@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, Grid3x3, type LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  UtensilsCrossed,
+  Grid3x3,
+  BarChart3,
+  History,
+  Ban,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface EnlaceNav {
@@ -15,6 +23,9 @@ const ENLACES: EnlaceNav[] = [
   { href: "/dashboard", etiqueta: "Panel", icono: LayoutDashboard },
   { href: "/menu", etiqueta: "Menú", icono: UtensilsCrossed },
   { href: "/mesas", etiqueta: "Mesas", icono: Grid3x3 },
+  { href: "/reportes/ventas", etiqueta: "Reportes", icono: BarChart3 },
+  { href: "/auditoria", etiqueta: "Auditoría", icono: History },
+  { href: "/anular", etiqueta: "Anular pedido", icono: Ban },
 ];
 
 function esActivo(pathname: string, href: string): boolean {
