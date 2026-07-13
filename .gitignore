@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# logs locales del servicio/tarea de respaldo (no se versionan)
+/logs
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
