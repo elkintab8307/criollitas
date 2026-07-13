@@ -23,12 +23,16 @@ export function SelectorOrigen({ mesasIniciales, sedeId }: SelectorOrigenProps) 
   const router = useRouter();
   const [modalDomicilioAbierto, setModalDomicilioAbierto] = useState(false);
   const [creandoLlevar, setCreandoLlevar] = useState(false);
+  const [creandoMesa, setCreandoMesa] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function alSeleccionarMesa(mesa: MesaVista) {
+    if (creandoMesa) return;
     setError(null);
+    setCreandoMesa(true);
     const resultado = await crearPedidoMesa(mesa.id);
     if (!resultado.ok) {
+      setCreandoMesa(false);
       setError(resultado.error.mensaje);
       return;
     }
@@ -57,13 +61,15 @@ export function SelectorOrigen({ mesasIniciales, sedeId }: SelectorOrigenProps) 
 
       <ClayCard variant="flat">
         <h2 className="mb-4 font-display text-xl font-semibold text-text-primary">Mesa</h2>
-        <GrillaMesas
-          mesasIniciales={mesasIniciales}
-          sedeId={sedeId}
-          puedeEditar={false}
-          modo="seleccion"
-          onSeleccionarMesa={alSeleccionarMesa}
-        />
+        <div className={creandoMesa ? "pointer-events-none opacity-60" : undefined}>
+          <GrillaMesas
+            mesasIniciales={mesasIniciales}
+            sedeId={sedeId}
+            puedeEditar={false}
+            modo="seleccion"
+            onSeleccionarMesa={alSeleccionarMesa}
+          />
+        </div>
       </ClayCard>
 
       <div className="flex flex-wrap gap-4">
