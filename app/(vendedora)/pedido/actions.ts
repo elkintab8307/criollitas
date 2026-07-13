@@ -7,7 +7,6 @@ import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { enviarPedidoSchema, type EnviarPedidoInput } from "@/lib/validations/pedido";
 import { calcularSubtotalItem, type ItemParaTotal } from "@/lib/pedido/totales";
-import { siguienteEstadoTrasEnvio } from "@/lib/pedido/transicionEstado";
 
 const uuidValido = (valor: string): boolean => z.uuid().safeParse(valor).success;
 
@@ -161,16 +160,21 @@ export async function confirmarItemsPedido(
   }
 
   // Recalcula subtotal_cop/total_cop con un SUM fresco sobre pedido_items y,
-  // en el mismo statement, aplica la transición de estado si corresponde
-  // (función `recalcular_totales_pedido`, security invoker). Una sola llamada
-  // RPC en vez de un UPDATE de totales seguido de un UPDATE de estado: dos
-  // round-trips separados dejarían una ventana donde el primero tiene éxito
-  // y el segundo falla o se pierde (misma red inestable que motiva el SUM
-  // fresco), dejando el pedido con totales al día pero sin avanzar a cocina.
-  const nuevoEstado = siguienteEstadoTrasEnvio(pedido.estado);
+  // en el mismo statement, recalcula el estado agregado del pedido a partir
+  // del estado real de TODOS sus ítems (misma regla que el RPC del KDS,
+  // lib/kds/estadoAgregado.ts) — no un valor decidido por el cliente. Esto
+  // corrige el caso donde se agrega un ítem tardío a un pedido ya `listo`
+  // (o `entregado`, reabierto): antes el estado quedaba `listo` con un ítem
+  // recién insertado en `pendiente`, violando el invariante de que el
+  // agregado siempre refleja el estado real de los ítems (el bloque 6 lo
+  // formaliza; bloque 7 lo va a asumir para decidir qué pedidos están
+  // listos para cobrar). Una sola llamada RPC en vez de un UPDATE de
+  // totales seguido de un UPDATE de estado: dos round-trips separados
+  // dejarían una ventana donde el primero tiene éxito y el segundo falla o
+  // se pierde, dejando el pedido con totales al día pero sin avanzar a
+  // cocina.
   const { error: errorTotales } = await supabase.rpc("recalcular_totales_pedido", {
     p_pedido_id: pedidoId,
-    p_nuevo_estado: nuevoEstado ?? undefined,
   });
   if (errorTotales) {
     return err({

@@ -107,6 +107,7 @@ async function cargarPedidoCompleto(
  *  local parchado incrementalmente, grid de TarjetaPedido. */
 export function TableroKDS({ pedidosIniciales, sedeId }: TableroKDSProps) {
   const [pedidos, setPedidos] = useState<PedidoKDSVista[]>(pedidosIniciales);
+  const [error, setError] = useState<string | null>(null);
   const pedidosRef = useRef(pedidos);
   pedidosRef.current = pedidos;
 
@@ -229,20 +230,37 @@ export function TableroKDS({ pedidosIniciales, sedeId }: TableroKDSProps) {
   }, [sedeId]);
 
   function alTocarItem(pedidoItemId: string, nuevoEstado: EstadoItemAccionable) {
-    void actualizarEstadoItem(pedidoItemId, nuevoEstado);
+    setError(null);
+    void actualizarEstadoItem(pedidoItemId, nuevoEstado).then((resultado) => {
+      // Éxito: no se toca el estado local aquí — la tarjeta se actualiza
+      // cuando llega el eco por Realtime del canal pedido_items. Solo se
+      // maneja el camino de error: sin esto, un fallo (red, sesión vencida,
+      // pedido que cambió de estado) es indistinguible de un toque que
+      // simplemente no hizo nada.
+      if (!resultado.ok) {
+        setError(resultado.error.mensaje);
+      }
+    });
   }
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
-      {pedidos.length === 0 ? (
-        <p className="col-span-full rounded-clay-md bg-brand-chocolate-2 p-6 text-center text-xl text-brand-crema/70">
-          No hay pedidos activos en cocina.
+    <div className="flex flex-col gap-4">
+      {error ? (
+        <p role="alert" className="rounded-clay-md bg-brand-tomate p-4 text-center text-xl text-brand-crema">
+          {error}
         </p>
-      ) : (
-        pedidos.map((pedido) => (
-          <TarjetaPedido key={pedido.id} pedido={pedido} onTocarItem={alTocarItem} />
-        ))
-      )}
+      ) : null}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
+        {pedidos.length === 0 ? (
+          <p className="col-span-full rounded-clay-md bg-brand-chocolate-2 p-6 text-center text-xl text-brand-crema/70">
+            No hay pedidos activos en cocina.
+          </p>
+        ) : (
+          pedidos.map((pedido) => (
+            <TarjetaPedido key={pedido.id} pedido={pedido} onTocarItem={alTocarItem} />
+          ))
+        )}
+      </div>
     </div>
   );
 }

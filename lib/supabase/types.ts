@@ -542,10 +542,7 @@ export type Database = {
       current_rol: { Args: never; Returns: string }
       current_sede_id: { Args: never; Returns: string }
       recalcular_totales_pedido: {
-        Args: {
-          p_nuevo_estado?: Database["public"]["Enums"]["estado_pedido"]
-          p_pedido_id: string
-        }
+        Args: { p_pedido_id: string }
         Returns: undefined
       }
     }
