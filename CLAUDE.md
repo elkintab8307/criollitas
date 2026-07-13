@@ -128,6 +128,8 @@ La Cajera abre turno declarando el efectivo inicial. Durante el turno, cada pago
 
 Vista sin scroll, pensada para pantalla vertical u horizontal en cocina. Cada tarjeta = un pedido. Muestra: número corto de pedido, origen (mesa X / domicilio / llevar), ítems con modificadores y notas, tiempo transcurrido con semáforo (verde <5min, amarillo 5-10, rojo >10, medido desde `enviado_cocina_en`). Toques por ítem: `pendiente` → `en preparación` → `listo`; un toque sobre `listo` lo destoca a `en preparación` (corrección de error). El estado agregado del pedido se recalcula solo cuando todos sus ítems coinciden — un pedido `entregado` al que se le agrega un ítem tardío se reabre a `enviado_cocina` para que vuelva a ser visible en el KDS. Se actualiza vía Supabase Realtime.
 
+**Cocina desactivable por sede** (`sedes.usa_cocina`, bloque D): la sede de Armenia opera hoy con `usa_cocina = false` — el establecimiento no usa este flujo. Con la bandera en `false`, `confirmarItemsPedido` inserta los `pedido_items` ya en `estado_item = 'listo'`, así que el agregado del pedido (calculado por `recalcular_totales_pedido`, sin cambios) llega directo a `listo` sin pasar visiblemente por `enviado_cocina`/`en_preparacion` — el pedido aparece de inmediato en la cola de cobro de la Cajera. Todo el modelo de cocina (rol, RLS, `/kds`, RPCs) queda intacto para reactivarse en el futuro solo cambiando esa columna a `true`, sin tocar código.
+
 ### 2.6 Impresión de tirilla POS
 
 Al cobrar, se genera y envía a la impresora térmica un ticket ESC/POS que incluye: encabezado con marca y sede, número de pedido, fecha/hora, mesa/origen, ítems con cantidades y precios, subtotales, propina si aplica, total, método(s) de pago, mensaje de cierre. Ver §10.
@@ -334,7 +336,9 @@ Cada política se implementa en su migración correspondiente y se prueba con un
 Resumen de tablas principales. El SQL completo vive en `supabase/migrations/`.
 
 ```
-sedes                (id, nombre, direccion, telefono, activa, creado_en)
+sedes                (id, nombre, direccion, telefono, activa, usa_cocina, creado_en)
+                     -- usa_cocina: si es false, los pedidos saltan directo a 'listo'
+                     --   sin pasar por el flujo de cocina/KDS (bloque D); default true
 usuarios             (id [FK auth.users], sede_id, nombre, rol, pin_hash, activo,
                       avatar_url, creado_en)
                      -- rol ∈ {admin, cajera, vendedora, cocina}
