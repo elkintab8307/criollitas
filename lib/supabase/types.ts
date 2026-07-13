@@ -794,7 +794,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vw_ventas_diarias: {
+        Row: {
+          canal: Database["public"]["Enums"]["canal_pedido"] | null
+          descuento_cop: number | null
+          dia: string | null
+          num_pedidos: number | null
+          propina_cop: number | null
+          sede_id: string | null
+          subtotal_cop: number | null
+          total_cop: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedidos_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       actualizar_estado_item_pedido: {
@@ -818,6 +838,64 @@ export type Database = {
       }
       current_rol: { Args: never; Returns: string }
       current_sede_id: { Args: never; Returns: string }
+      fn_reporte_canales: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          canal: Database["public"]["Enums"]["canal_pedido"]
+          num_pedidos: number
+          porcentaje: number
+          total_cop: number
+        }[]
+      }
+      fn_reporte_mapa_calor_horas: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          dia_semana: number
+          hora: number
+          num_pedidos: number
+          promedio_cop: number
+        }[]
+      }
+      fn_reporte_metodos_pago: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          metodo: Database["public"]["Enums"]["metodo_pago"]
+          num_pagos: number
+          porcentaje: number
+          total_cop: number
+        }[]
+      }
+      fn_reporte_ticket_promedio_canal: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          canal: Database["public"]["Enums"]["canal_pedido"]
+          num_pedidos: number
+          ticket_promedio_cop: number
+        }[]
+      }
+      fn_reporte_ticket_promedio_global: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          num_pedidos: number
+          ticket_promedio_cop: number
+        }[]
+      }
+      fn_reporte_ventas_rango: {
+        Args: {
+          p_canal?: Database["public"]["Enums"]["canal_pedido"]
+          p_desde: string
+          p_hasta: string
+        }
+        Returns: {
+          canal: Database["public"]["Enums"]["canal_pedido"]
+          descuento_cop: number
+          dia: string
+          num_pedidos: number
+          propina_cop: number
+          subtotal_cop: number
+          total_cop: number
+        }[]
+      }
       recalcular_totales_pedido: {
         Args: { p_pedido_id: string }
         Returns: undefined
