@@ -1,4 +1,5 @@
 import { createServerSupabase } from "@/lib/supabase/server";
+import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { PedidoNuevoEditor } from "@/components/pedido/PedidoNuevoEditor";
 import type { CategoriaFila, ModificadorFila, ProductoFila } from "@/components/menu/types";
 import type { OrigenPedido } from "@/app/(vendedora)/pedido/actions";
@@ -31,6 +32,13 @@ export default async function PedidoNuevoPage({ searchParams }: PageProps) {
     tituloOrigen = "Para llevar";
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const sedeId = (user?.app_metadata?.sede_id as string | undefined) ?? SEDE_DEFAULT_ID;
+  const { data: sedeFila } = await supabase.from("sedes").select("usa_cocina").eq("id", sedeId).maybeSingle();
+  const usaCocina = sedeFila?.usa_cocina !== false;
+
   const { data: categoriasFilas } = await supabase
     .from("categorias")
     .select("id, nombre, orden, activa")
@@ -54,6 +62,7 @@ export default async function PedidoNuevoPage({ searchParams }: PageProps) {
           categorias={(categoriasFilas ?? []) as CategoriaFila[]}
           productos={(productosFilas ?? []) as ProductoFila[]}
           modificadores={(modificadoresFilas ?? []) as ModificadorFila[]}
+          usaCocina={usaCocina}
         />
       </div>
     </main>

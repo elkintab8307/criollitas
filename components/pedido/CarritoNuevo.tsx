@@ -9,13 +9,14 @@ import { crearPedidoConItems, type OrigenPedido } from "@/app/(vendedora)/pedido
 
 interface CarritoNuevoProps {
   origen: OrigenPedido;
+  usaCocina: boolean;
 }
 
 /** Carrito para un pedido que todavía no existe en base de datos (Bloque A:
  *  un pedido solo se crea al confirmar el primer envío). Sin sección "ya
  *  enviado a cocina" -- nada se ha confirmado todavía -- y un único botón,
  *  sin el caso de reenvíos que sí maneja CarritoPedido. */
-export function CarritoNuevo({ origen }: CarritoNuevoProps) {
+export function CarritoNuevo({ origen, usaCocina }: CarritoNuevoProps) {
   const router = useRouter();
   const { items, quitar, cambiarCantidad, vaciar } = useCarritoStore();
   const [enviando, setEnviando] = useState(false);
@@ -123,7 +124,7 @@ export function CarritoNuevo({ origen }: CarritoNuevoProps) {
         disabled={items.length === 0 || enviando}
         onClick={confirmar}
       >
-        {enviando ? "Enviando…" : "Enviar a cocina"}
+        {enviando ? "Enviando…" : usaCocina ? "Enviar a cocina" : "Confirmar pedido"}
       </ClayButton>
     </aside>
   );

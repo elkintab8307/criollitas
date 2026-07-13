@@ -80,6 +80,13 @@ export async function confirmarItemsPedido(
     return err({ codigo: "VALIDACION", mensaje: "Este pedido ya no se puede modificar" });
   }
 
+  const { data: sedeFila } = await supabase
+    .from("sedes")
+    .select("usa_cocina")
+    .eq("id", ctx.valor.sedeId)
+    .maybeSingle();
+  const estadoItemInicial = sedeFila?.usa_cocina === false ? "listo" : "pendiente";
+
   const productoIds = [...new Set(parsed.data.items.map((item) => item.productoId))];
   const { data: productos, error: errorProductos } = await supabase
     .from("productos")
@@ -150,6 +157,7 @@ export async function confirmarItemsPedido(
         precio_unit_cop: fila.precio_unit_cop,
         subtotal_cop: fila.subtotal_cop,
         notas: fila.notas,
+        estado_item: estadoItemInicial,
       })),
     )
     .select("id");

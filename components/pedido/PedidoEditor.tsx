@@ -13,6 +13,7 @@ interface PedidoEditorProps {
   categorias: CategoriaFila[];
   productos: ProductoFila[];
   modificadores: ModificadorFila[];
+  usaCocina: boolean;
 }
 
 const ESTADOS_TERMINALES = new Set(["cobrado", "cerrado", "anulado", "cancelado"]);
@@ -28,6 +29,7 @@ export function PedidoEditor({
   categorias,
   productos,
   modificadores,
+  usaCocina,
 }: PedidoEditorProps) {
   const soloLectura = ESTADOS_TERMINALES.has(pedido.estado);
 
@@ -50,7 +52,12 @@ export function PedidoEditor({
           <SelectorMenu categorias={categorias} productos={productos} modificadores={modificadores} />
         )}
       </div>
-      <CarritoPedido pedido={pedido} itemsConfirmados={itemsConfirmados} soloLectura={soloLectura} />
+      <CarritoPedido
+        pedido={pedido}
+        itemsConfirmados={itemsConfirmados}
+        soloLectura={soloLectura}
+        usaCocina={usaCocina}
+      />
     </div>
   );
 }

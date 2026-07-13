@@ -12,6 +12,7 @@ interface PedidoNuevoEditorProps {
   categorias: CategoriaFila[];
   productos: ProductoFila[];
   modificadores: ModificadorFila[];
+  usaCocina: boolean;
 }
 
 function claveContexto(origen: OrigenPedido): string {
@@ -22,7 +23,7 @@ function claveContexto(origen: OrigenPedido): string {
 
 /** Orquesta /pedido/nuevo: menú a la izquierda, carrito en curso (sin
  *  pedido en base de datos todavía) a la derecha. */
-export function PedidoNuevoEditor({ origen, categorias, productos, modificadores }: PedidoNuevoEditorProps) {
+export function PedidoNuevoEditor({ origen, categorias, productos, modificadores, usaCocina }: PedidoNuevoEditorProps) {
   const clave = claveContexto(origen);
 
   // Mismo mecanismo que PedidoEditor.tsx (asegurarPedido): protege contra un
@@ -37,7 +38,7 @@ export function PedidoNuevoEditor({ origen, categorias, productos, modificadores
       <div className="flex-1">
         <SelectorMenu categorias={categorias} productos={productos} modificadores={modificadores} />
       </div>
-      <CarritoNuevo origen={origen} />
+      <CarritoNuevo origen={origen} usaCocina={usaCocina} />
     </div>
   );
 }

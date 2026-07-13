@@ -17,7 +17,7 @@ export default async function PedidoPage({ params }: PageProps) {
 
   const { data: pedidoFila } = await supabase
     .from("pedidos")
-    .select("id, numero_corto, canal, estado, subtotal_cop, total_cop, mesa_id, cliente_id, vendedora_id")
+    .select("id, numero_corto, canal, estado, subtotal_cop, total_cop, mesa_id, cliente_id, vendedora_id, sede_id")
     .eq("id", pedidoId)
     .single();
 
@@ -44,6 +44,13 @@ export default async function PedidoPage({ params }: PageProps) {
       .single();
     clienteNombre = clienteFila?.nombre ?? null;
   }
+
+  const { data: sedeFila } = await supabase
+    .from("sedes")
+    .select("usa_cocina")
+    .eq("id", pedidoFila.sede_id)
+    .maybeSingle();
+  const usaCocina = sedeFila?.usa_cocina !== false;
 
   const pedido: PedidoVista = {
     id: pedidoFila.id,
@@ -127,6 +134,7 @@ export default async function PedidoPage({ params }: PageProps) {
           categorias={(categoriasFilas ?? []) as CategoriaFila[]}
           productos={(productosFilas ?? []) as ProductoFila[]}
           modificadores={(modificadoresFilas ?? []) as ModificadorFila[]}
+          usaCocina={usaCocina}
         />
       </div>
     </main>
