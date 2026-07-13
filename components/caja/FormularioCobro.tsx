@@ -35,7 +35,11 @@ export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const montosCop = pagos.map((p) => montoDesdePesos(p.montoPesos || 0));
+  // Math.trunc: montoDesdePesos lanza RangeError ante un no-entero
+  // (lib/money.ts). El input es type="number" con step=1, pero eso no
+  // impide que el usuario pegue o escriba "1.5" -- sin este guard, un
+  // render con ese valor tumba toda la pantalla de cobro.
+  const montosCop = pagos.map((p) => montoDesdePesos(Math.trunc(p.montoPesos) || 0));
   const sumaCop = sumar(...montosCop);
   const cuadra = pagosCuadranConTotal(montosCop, totalCop);
 
@@ -91,7 +95,9 @@ export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
             min={0}
             step={1}
             value={pago.montoPesos || ""}
-            onChange={(evento) => actualizarPago(pago.clave, { montoPesos: Number(evento.target.value) || 0 })}
+            onChange={(evento) =>
+              actualizarPago(pago.clave, { montoPesos: Math.trunc(Number(evento.target.value)) || 0 })
+            }
           />
           {pagos.length > 1 ? (
             <button

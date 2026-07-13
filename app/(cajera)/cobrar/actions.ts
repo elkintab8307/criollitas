@@ -73,9 +73,12 @@ async function intentarImprimirTirilla(
 ): Promise<void> {
   try {
     await intentarImprimirTirillaInterno(supabase, pedidoId);
-  } catch {
+  } catch (error) {
     // El cobro ya está confirmado; un fallo aquí (BD transitoria, etc.) no
-    // debe propagar y aparentar que cobrarPedido falló.
+    // debe propagar y aparentar que cobrarPedido falló. Se registra en el
+    // log del servidor para no perder visibilidad de un bug real (ej. un
+    // error de programación) que de otro modo fallaría en silencio total.
+    console.error(`intentarImprimirTirilla falló para pedido ${pedidoId}:`, error);
   }
 }
 
