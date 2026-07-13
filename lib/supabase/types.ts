@@ -294,6 +294,7 @@ export type Database = {
           cliente_id: string | null
           creado_en: string
           descuento_cop: number
+          enviado_cocina_en: string | null
           estado: Database["public"]["Enums"]["estado_pedido"]
           id: string
           mesa_id: string | null
@@ -311,6 +312,7 @@ export type Database = {
           cliente_id?: string | null
           creado_en?: string
           descuento_cop?: number
+          enviado_cocina_en?: string | null
           estado?: Database["public"]["Enums"]["estado_pedido"]
           id?: string
           mesa_id?: string | null
@@ -328,6 +330,7 @@ export type Database = {
           cliente_id?: string | null
           creado_en?: string
           descuento_cop?: number
+          enviado_cocina_en?: string | null
           estado?: Database["public"]["Enums"]["estado_pedido"]
           id?: string
           mesa_id?: string | null
@@ -529,6 +532,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      actualizar_estado_item_pedido: {
+        Args: {
+          p_nuevo_estado: Database["public"]["Enums"]["estado_item_pedido"]
+          p_pedido_item_id: string
+        }
+        Returns: undefined
+      }
       current_rol: { Args: never; Returns: string }
       current_sede_id: { Args: never; Returns: string }
       recalcular_totales_pedido: {
