@@ -165,3 +165,33 @@ export async function crearPedidoLlevar(): Promise<Result<{ pedidoId: string }, 
   revalidatePath("/inicio");
   return ok({ pedidoId: pedido.id });
 }
+
+/** Busca el pedido abierto de esta mesa que pertenece a la vendedora
+ *  actual, para retomarlo (ej. si salió a atender otra mesa y regresa).
+ *  `pedidos_vendedora_select` no excluye estados terminales, así que el
+ *  filtro de estado va explícito en la query, no se confía en RLS aquí. */
+export async function entrarPedidoDeMesa(
+  mesaId: string,
+): Promise<Result<{ pedidoId: string }, DomainError>> {
+  const ctx = await exigirVendedora();
+  if (!ctx.ok) return ctx;
+  if (!uuidValido(mesaId)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador de mesa inválido" });
+  }
+  const supabase = await createServerSupabase();
+
+  const { data: pedido } = await supabase
+    .from("pedidos")
+    .select("id")
+    .eq("mesa_id", mesaId)
+    .eq("vendedora_id", ctx.valor.vendedoraId)
+    .not("estado", "in", "(cobrado,cerrado,anulado)")
+    .order("creado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!pedido) {
+    return err({ codigo: "NO_ENCONTRADO", mensaje: "Esta mesa está ocupada por otra persona." });
+  }
+  return ok({ pedidoId: pedido.id });
+}
