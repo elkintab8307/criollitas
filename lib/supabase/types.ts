@@ -118,6 +118,47 @@ export type Database = {
           },
         ]
       }
+      impresiones: {
+        Row: {
+          contenido_escpos: string
+          creado_en: string
+          enviado_en: string | null
+          error: string | null
+          exito: boolean | null
+          id: string
+          pedido_id: string
+          tipo: string
+        }
+        Insert: {
+          contenido_escpos: string
+          creado_en?: string
+          enviado_en?: string | null
+          error?: string | null
+          exito?: boolean | null
+          id?: string
+          pedido_id: string
+          tipo: string
+        }
+        Update: {
+          contenido_escpos?: string
+          creado_en?: string
+          enviado_en?: string | null
+          error?: string | null
+          exito?: boolean | null
+          id?: string
+          pedido_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impresiones_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mesas: {
         Row: {
           activa: boolean
@@ -196,6 +237,86 @@ export type Database = {
             columns: ["producto_id"]
             isOneToOne: false
             referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      movimientos_caja: {
+        Row: {
+          concepto: string
+          creado_en: string
+          id: string
+          monto_cop: number
+          tipo: Database["public"]["Enums"]["tipo_movimiento_caja"]
+          turno_id: string
+        }
+        Insert: {
+          concepto: string
+          creado_en?: string
+          id?: string
+          monto_cop: number
+          tipo: Database["public"]["Enums"]["tipo_movimiento_caja"]
+          turno_id: string
+        }
+        Update: {
+          concepto?: string
+          creado_en?: string
+          id?: string
+          monto_cop?: number
+          tipo?: Database["public"]["Enums"]["tipo_movimiento_caja"]
+          turno_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimientos_caja_turno_id_fkey"
+            columns: ["turno_id"]
+            isOneToOne: false
+            referencedRelation: "turnos_caja"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pagos: {
+        Row: {
+          creado_en: string
+          id: string
+          metodo: Database["public"]["Enums"]["metodo_pago"]
+          monto_cop: number
+          pedido_id: string
+          referencia: string | null
+          turno_id: string
+        }
+        Insert: {
+          creado_en?: string
+          id?: string
+          metodo: Database["public"]["Enums"]["metodo_pago"]
+          monto_cop: number
+          pedido_id: string
+          referencia?: string | null
+          turno_id: string
+        }
+        Update: {
+          creado_en?: string
+          id?: string
+          metodo?: Database["public"]["Enums"]["metodo_pago"]
+          monto_cop?: number
+          pedido_id?: string
+          referencia?: string | null
+          turno_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagos_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pagos_turno_id_fkey"
+            columns: ["turno_id"]
+            isOneToOne: false
+            referencedRelation: "turnos_caja"
             referencedColumns: ["id"]
           },
         ]
@@ -486,6 +607,63 @@ export type Database = {
         }
         Relationships: []
       }
+      turnos_caja: {
+        Row: {
+          abierto_en: string
+          cajera_id: string
+          cerrado_en: string | null
+          diferencia_cop: number | null
+          efectivo_declarado_cop: number | null
+          efectivo_inicial_cop: number
+          esperado_cop: number | null
+          estado: Database["public"]["Enums"]["estado_turno"]
+          id: string
+          notas: string | null
+          sede_id: string
+        }
+        Insert: {
+          abierto_en?: string
+          cajera_id: string
+          cerrado_en?: string | null
+          diferencia_cop?: number | null
+          efectivo_declarado_cop?: number | null
+          efectivo_inicial_cop: number
+          esperado_cop?: number | null
+          estado?: Database["public"]["Enums"]["estado_turno"]
+          id?: string
+          notas?: string | null
+          sede_id: string
+        }
+        Update: {
+          abierto_en?: string
+          cajera_id?: string
+          cerrado_en?: string | null
+          diferencia_cop?: number | null
+          efectivo_declarado_cop?: number | null
+          efectivo_inicial_cop?: number
+          esperado_cop?: number | null
+          estado?: Database["public"]["Enums"]["estado_turno"]
+          id?: string
+          notas?: string | null
+          sede_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "turnos_caja_cajera_id_fkey"
+            columns: ["cajera_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "turnos_caja_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       usuarios: {
         Row: {
           activo: boolean
@@ -559,7 +737,16 @@ export type Database = {
         | "cobrado"
         | "cerrado"
         | "anulado"
+      estado_turno: "abierto" | "cerrado"
+      metodo_pago:
+        | "efectivo"
+        | "nequi"
+        | "daviplata"
+        | "bancolombia_qr"
+        | "datafono"
+        | "otro"
       rol_usuario: "admin" | "cajera" | "vendedora" | "cocina"
+      tipo_movimiento_caja: "retiro" | "gasto" | "ingreso_extra"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -703,7 +890,17 @@ export const Constants = {
         "cerrado",
         "anulado",
       ],
+      estado_turno: ["abierto", "cerrado"],
+      metodo_pago: [
+        "efectivo",
+        "nequi",
+        "daviplata",
+        "bancolombia_qr",
+        "datafono",
+        "otro",
+      ],
       rol_usuario: ["admin", "cajera", "vendedora", "cocina"],
+      tipo_movimiento_caja: ["retiro", "gasto", "ingreso_extra"],
     },
   },
 } as const
