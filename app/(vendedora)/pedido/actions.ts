@@ -5,12 +5,15 @@ import { z } from "zod";
 
 import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { enviarPedidoSchema, type EnviarPedidoInput } from "@/lib/validations/pedido";
 import { calcularSubtotalItem, type ItemParaTotal } from "@/lib/pedido/totales";
+import { siguienteNumeroCorto } from "@/lib/pedido/numeroCorto";
+import { limitesDeHoyBogota } from "@/lib/dates";
 
 const uuidValido = (valor: string): boolean => z.uuid().safeParse(valor).success;
 
-async function exigirVendedora(): Promise<Result<{ vendedoraId: string }, DomainError>> {
+async function exigirVendedora(): Promise<Result<{ vendedoraId: string; sedeId: string }, DomainError>> {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -19,7 +22,24 @@ async function exigirVendedora(): Promise<Result<{ vendedoraId: string }, Domain
   if (user.app_metadata?.rol !== "vendedora") {
     return err({ codigo: "NO_AUTORIZADO", mensaje: "Solo la vendedora puede editar este pedido" });
   }
-  return ok({ vendedoraId: user.id });
+  return ok({
+    vendedoraId: user.id,
+    sedeId: (user.app_metadata?.sede_id as string) ?? SEDE_DEFAULT_ID,
+  });
+}
+
+async function calcularSiguienteNumero(
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  sedeId: string,
+): Promise<number> {
+  const { desde, hasta } = limitesDeHoyBogota();
+  const { data } = await supabase
+    .from("pedidos")
+    .select("numero_corto")
+    .eq("sede_id", sedeId)
+    .gte("creado_en", desde.toISOString())
+    .lt("creado_en", hasta.toISOString());
+  return siguienteNumeroCorto((data ?? []).map((fila) => fila.numero_corto));
 }
 
 const ESTADOS_NO_MODIFICABLES = new Set(["cobrado", "cerrado", "anulado"]);
@@ -119,12 +139,6 @@ export async function confirmarItemsPedido(
     });
   }
 
-  // Un solo INSERT de N filas en vez de N INSERTs sueltos en un loop: es una
-  // única sentencia SQL, todo o nada (si una fila falla por constraint, no
-  // queda ninguna a medias) — reduce la ventana en la que un reintento del
-  // cliente tras un fallo parcial duplicaría los ítems que sí alcanzaron a
-  // guardarse. `RETURNING` conserva el orden de los VALUES, así que el i-ésimo
-  // id devuelto corresponde al i-ésimo elemento de filasItems.
   const { data: itemsInsertados, error: errorItems } = await supabase
     .from("pedido_items")
     .insert(
@@ -159,20 +173,6 @@ export async function confirmarItemsPedido(
     }
   }
 
-  // Recalcula subtotal_cop/total_cop con un SUM fresco sobre pedido_items y,
-  // en el mismo statement, recalcula el estado agregado del pedido a partir
-  // del estado real de TODOS sus ítems (misma regla que el RPC del KDS,
-  // lib/kds/estadoAgregado.ts) — no un valor decidido por el cliente. Esto
-  // corrige el caso donde se agrega un ítem tardío a un pedido ya `listo`
-  // (o `entregado`, reabierto): antes el estado quedaba `listo` con un ítem
-  // recién insertado en `pendiente`, violando el invariante de que el
-  // agregado siempre refleja el estado real de los ítems (el bloque 6 lo
-  // formaliza; bloque 7 lo va a asumir para decidir qué pedidos están
-  // listos para cobrar). Una sola llamada RPC en vez de un UPDATE de
-  // totales seguido de un UPDATE de estado: dos round-trips separados
-  // dejarían una ventana donde el primero tiene éxito y el segundo falla o
-  // se pierde, dejando el pedido con totales al día pero sin avanzar a
-  // cocina.
   const { error: errorTotales } = await supabase.rpc("recalcular_totales_pedido", {
     p_pedido_id: pedidoId,
   });
@@ -185,4 +185,86 @@ export async function confirmarItemsPedido(
 
   revalidatePath(`/pedido/${pedidoId}`);
   return ok(null);
+}
+
+export type OrigenPedido =
+  | { canal: "mesa"; mesaId: string }
+  | { canal: "domicilio"; clienteId: string }
+  | { canal: "llevar" };
+
+/** Borra un pedido `abierto` y cualquier ítem/adicional que haya alcanzado
+ *  a insertarse, en ese orden (pedido_item_mods -> pedido_items -> pedidos)
+ *  para no violar las FK. Se usa cuando crearPedidoConItems crea el pedido
+ *  pero confirmarItemsPedido falla después -- mantiene el invariante "sin
+ *  productos, no hay pedido" incluso en el camino de error. */
+async function limpiarPedidoVacio(
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  pedidoId: string,
+): Promise<void> {
+  const { data: itemsFilas } = await supabase.from("pedido_items").select("id").eq("pedido_id", pedidoId);
+  const itemIds = (itemsFilas ?? []).map((i) => i.id);
+  if (itemIds.length > 0) {
+    await supabase.from("pedido_item_mods").delete().in("pedido_item_id", itemIds);
+    await supabase.from("pedido_items").delete().eq("pedido_id", pedidoId);
+  }
+  await supabase.from("pedidos").delete().eq("id", pedidoId);
+}
+
+/** Crea el pedido y sus primeros ítems en un solo paso -- un pedido nunca
+ *  existe en base de datos sin al menos un producto confirmado. Reutiliza
+ *  confirmarItemsPedido para la inserción de ítems (cero lógica de precios
+ *  duplicada); si falla, borra la fila recién creada. */
+export async function crearPedidoConItems(
+  origen: OrigenPedido,
+  input: EnviarPedidoInput,
+): Promise<Result<{ pedidoId: string }, DomainError>> {
+  const ctx = await exigirVendedora();
+  if (!ctx.ok) return ctx;
+  const supabase = await createServerSupabase();
+
+  if (origen.canal === "mesa") {
+    if (!uuidValido(origen.mesaId)) {
+      return err({ codigo: "VALIDACION", mensaje: "Identificador de mesa inválido" });
+    }
+    const { data: mesa, error: errorMesa } = await supabase
+      .from("mesas")
+      .select("id, estado, activa")
+      .eq("id", origen.mesaId)
+      .single();
+    if (errorMesa || !mesa) {
+      return err({ codigo: "NO_ENCONTRADO", mensaje: "La mesa no existe" });
+    }
+    if (!mesa.activa || mesa.estado !== "libre") {
+      return err({ codigo: "VALIDACION", mensaje: "Esa mesa ya no está disponible. Elige otra." });
+    }
+  } else if (origen.canal === "domicilio") {
+    if (!uuidValido(origen.clienteId)) {
+      return err({ codigo: "VALIDACION", mensaje: "Identificador de cliente inválido" });
+    }
+  }
+
+  const numeroCorto = await calcularSiguienteNumero(supabase, ctx.valor.sedeId);
+  const { data: pedido, error: errorPedido } = await supabase
+    .from("pedidos")
+    .insert({
+      sede_id: ctx.valor.sedeId,
+      numero_corto: numeroCorto,
+      canal: origen.canal,
+      mesa_id: origen.canal === "mesa" ? origen.mesaId : null,
+      cliente_id: origen.canal === "domicilio" ? origen.clienteId : null,
+      vendedora_id: ctx.valor.vendedoraId,
+    })
+    .select("id")
+    .single();
+  if (errorPedido || !pedido) {
+    return err({ codigo: "BASE_DATOS", mensaje: "No pudimos crear el pedido. Intenta de nuevo." });
+  }
+
+  const resultado = await confirmarItemsPedido(pedido.id, input);
+  if (!resultado.ok) {
+    await limpiarPedidoVacio(supabase, pedido.id);
+    return resultado;
+  }
+
+  return ok({ pedidoId: pedido.id });
 }
