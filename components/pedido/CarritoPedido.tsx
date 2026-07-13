@@ -23,10 +23,11 @@ interface CarritoPedidoProps {
   /** Pedido en estado terminal (cobrado/cerrado/anulado): el carrito en curso
    *  puede tener ítems sin enviar, pero el botón de confirmar queda bloqueado. */
   soloLectura?: boolean;
+  usaCocina: boolean;
 }
 
 /** Panel del carrito en curso (zustand) + ítems ya confirmados (solo lectura) + total. */
-export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false }: CarritoPedidoProps) {
+export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, usaCocina }: CarritoPedidoProps) {
   const router = useRouter();
   const { items, quitar, cambiarCantidad, vaciar } = useCarritoStore();
   const [enviando, setEnviando] = useState(false);
@@ -47,7 +48,7 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false }:
   const totalConfirmado = BigInt(pedido.totalCop);
 
   const esPrimerEnvio = pedido.estado === "abierto";
-  const textoBoton = esPrimerEnvio ? "Enviar a cocina" : "Agregar a la comanda";
+  const textoBoton = esPrimerEnvio ? (usaCocina ? "Enviar a cocina" : "Confirmar pedido") : "Agregar a la comanda";
 
   async function confirmar() {
     if (items.length === 0 || soloLectura) return;
@@ -76,7 +77,9 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false }:
 
       {itemsConfirmados.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="font-display text-sm font-medium text-text-secondary">Ya enviado a cocina</h3>
+          <h3 className="font-display text-sm font-medium text-text-secondary">
+            {usaCocina ? "Ya enviado a cocina" : "Confirmado"}
+          </h3>
           {itemsConfirmados.map((item) => (
             <div key={item.id} className="rounded-clay-sm bg-surface-sunken p-3 text-sm text-text-primary">
               <div className="flex items-center justify-between gap-2">
