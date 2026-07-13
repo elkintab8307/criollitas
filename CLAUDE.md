@@ -380,12 +380,21 @@ auditoria            (id, sede_id, usuario_id, accion, tabla, registro_id,
 
 anulaciones          (id, pedido_id, usuario_id, motivo, creado_en)
 
--- Vistas y funciones para reportes
-vw_ventas_diarias
-vw_top_productos
-vw_ranking_vendedoras
-vw_mapa_calor_horas
-fn_reporte_rango(sede_id, desde, hasta)
+-- Vistas y funciones para reportes (bloque 9a: infraestructura + ventas)
+vw_ventas_diarias           -- agregado diario por sede/canal, solo pedidos 'cobrado';
+                             --   sede_id y current_rol()='admin' filtrados dentro de
+                             --   la vista misma (una vista corre con privilegios del
+                             --   dueño, no del invocador, así que RLS de `pedidos` no
+                             --   se aplica automáticamente a través de ella)
+fn_reporte_ventas_rango(desde, hasta, canal?)
+fn_reporte_mapa_calor_horas(desde, hasta)     -- promedio por día-de-semana×hora, no suma
+fn_reporte_ticket_promedio_global(desde, hasta)
+fn_reporte_ticket_promedio_canal(desde, hasta)
+fn_reporte_metodos_pago(desde, hasta)
+fn_reporte_canales(desde, hasta)
+-- Pendientes (bloques 9b/9c): vw_top_productos, vw_ranking_vendedoras,
+-- fn_reporte_mesas_rentables, fn_reporte_tiempos_preparacion, fn_reporte_arqueos,
+-- fn_reporte_anulaciones — nombres aspiracionales, aún no implementados.
 ```
 
 **Reglas de dinero:** todos los montos se almacenan como `bigint` en **centavos de peso colombiano** (`_cop` en el nombre). Nunca `numeric` con decimales, nunca `float`. La UI convierte en el borde.
