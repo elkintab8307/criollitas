@@ -1,14 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { clienteDomicilioSchema, type ClienteDomicilioInput } from "@/lib/validations/pedido";
-import { siguienteNumeroCorto } from "@/lib/pedido/numeroCorto";
-import { limitesDeHoyBogota } from "@/lib/dates";
 
 const uuidValido = (valor: string): boolean => z.uuid().safeParse(valor).success;
 
@@ -33,65 +30,13 @@ async function exigirVendedora(): Promise<Result<ContextoVendedora, DomainError>
   });
 }
 
-async function calcularSiguienteNumero(
-  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
-  sedeId: string,
-): Promise<number> {
-  const { desde, hasta } = limitesDeHoyBogota();
-  const { data } = await supabase
-    .from("pedidos")
-    .select("numero_corto")
-    .eq("sede_id", sedeId)
-    .gte("creado_en", desde.toISOString())
-    .lt("creado_en", hasta.toISOString());
-  return siguienteNumeroCorto((data ?? []).map((fila) => fila.numero_corto));
-}
-
-export async function crearPedidoMesa(
-  mesaId: string,
-): Promise<Result<{ pedidoId: string }, DomainError>> {
-  const ctx = await exigirVendedora();
-  if (!ctx.ok) return ctx;
-  if (!uuidValido(mesaId)) {
-    return err({ codigo: "VALIDACION", mensaje: "Identificador de mesa inválido" });
-  }
-  const supabase = await createServerSupabase();
-
-  const { data: mesa, error: errorMesa } = await supabase
-    .from("mesas")
-    .select("id, estado, activa")
-    .eq("id", mesaId)
-    .single();
-  if (errorMesa || !mesa) {
-    return err({ codigo: "NO_ENCONTRADO", mensaje: "La mesa no existe" });
-  }
-  if (!mesa.activa || mesa.estado !== "libre") {
-    return err({ codigo: "VALIDACION", mensaje: "Esa mesa ya no está disponible. Elige otra." });
-  }
-
-  const numeroCorto = await calcularSiguienteNumero(supabase, ctx.valor.sedeId);
-  const { data: pedido, error: errorPedido } = await supabase
-    .from("pedidos")
-    .insert({
-      sede_id: ctx.valor.sedeId,
-      numero_corto: numeroCorto,
-      canal: "mesa",
-      mesa_id: mesaId,
-      vendedora_id: ctx.valor.vendedoraId,
-    })
-    .select("id")
-    .single();
-  if (errorPedido || !pedido) {
-    return err({ codigo: "BASE_DATOS", mensaje: "No pudimos crear el pedido. Intenta de nuevo." });
-  }
-
-  revalidatePath("/inicio");
-  return ok({ pedidoId: pedido.id });
-}
-
+/** Guarda o actualiza los datos del cliente de domicilio -- ya NO crea el
+ *  pedido (Bloque A: un pedido solo existe si se le agregan productos). El
+ *  pedido se crea en /pedido/nuevo al confirmar el primer envío
+ *  (crearPedidoConItems, app/(vendedora)/pedido/actions.ts). */
 export async function crearPedidoDomicilio(
   input: ClienteDomicilioInput,
-): Promise<Result<{ pedidoId: string }, DomainError>> {
+): Promise<Result<{ clienteId: string }, DomainError>> {
   const ctx = await exigirVendedora();
   if (!ctx.ok) return ctx;
   const parsed = clienteDomicilioSchema.safeParse(input);
@@ -124,46 +69,7 @@ export async function crearPedidoDomicilio(
     });
   }
 
-  const numeroCorto = await calcularSiguienteNumero(supabase, ctx.valor.sedeId);
-  const { data: pedido, error: errorPedido } = await supabase
-    .from("pedidos")
-    .insert({
-      sede_id: ctx.valor.sedeId,
-      numero_corto: numeroCorto,
-      canal: "domicilio",
-      cliente_id: cliente.id,
-      vendedora_id: ctx.valor.vendedoraId,
-    })
-    .select("id")
-    .single();
-  if (errorPedido || !pedido) {
-    return err({ codigo: "BASE_DATOS", mensaje: "No pudimos crear el pedido. Intenta de nuevo." });
-  }
-
-  revalidatePath("/inicio");
-  return ok({ pedidoId: pedido.id });
-}
-
-export async function crearPedidoLlevar(): Promise<Result<{ pedidoId: string }, DomainError>> {
-  const ctx = await exigirVendedora();
-  if (!ctx.ok) return ctx;
-  const supabase = await createServerSupabase();
-  const numeroCorto = await calcularSiguienteNumero(supabase, ctx.valor.sedeId);
-  const { data: pedido, error } = await supabase
-    .from("pedidos")
-    .insert({
-      sede_id: ctx.valor.sedeId,
-      numero_corto: numeroCorto,
-      canal: "llevar",
-      vendedora_id: ctx.valor.vendedoraId,
-    })
-    .select("id")
-    .single();
-  if (error || !pedido) {
-    return err({ codigo: "BASE_DATOS", mensaje: "No pudimos crear el pedido. Intenta de nuevo." });
-  }
-  revalidatePath("/inicio");
-  return ok({ pedidoId: pedido.id });
+  return ok({ clienteId: cliente.id });
 }
 
 /** Busca el pedido abierto de esta mesa que pertenece a la vendedora
