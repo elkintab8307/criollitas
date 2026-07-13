@@ -7,6 +7,7 @@ import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { enviarPedidoSchema, type EnviarPedidoInput } from "@/lib/validations/pedido";
 import { calcularSubtotalItem, type ItemParaTotal } from "@/lib/pedido/totales";
+import { siguienteEstadoTrasEnvio } from "@/lib/pedido/transicionEstado";
 
 const uuidValido = (valor: string): boolean => z.uuid().safeParse(valor).success;
 
@@ -48,7 +49,7 @@ export async function confirmarItemsPedido(
 
   const { data: pedido, error: errorPedido } = await supabase
     .from("pedidos")
-    .select("id, estado, subtotal_cop")
+    .select("id, estado")
     .eq("id", pedidoId)
     .eq("vendedora_id", ctx.valor.vendedoraId)
     .single();
@@ -70,12 +71,18 @@ export async function confirmarItemsPedido(
   const productoPorId = new Map(productos.map((p) => [p.id, p]));
 
   const modificadorIds = [...new Set(parsed.data.items.flatMap((item) => item.modificadorIds))];
-  const { data: modificadores } = modificadorIds.length
+  const { data: modificadores, error: errorModificadores } = modificadorIds.length
     ? await supabase
         .from("modificadores")
         .select("id, producto_id, precio_delta_cop, activo")
         .in("id", modificadorIds)
-    : { data: [] as { id: string; producto_id: string; precio_delta_cop: number; activo: boolean }[] };
+    : { data: [] as { id: string; producto_id: string; precio_delta_cop: number; activo: boolean }[], error: null };
+  if (errorModificadores) {
+    return err({
+      codigo: "BASE_DATOS",
+      mensaje: "No pudimos verificar los adicionales. Intenta de nuevo.",
+    });
+  }
   const modificadorPorId = new Map((modificadores ?? []).map((m) => [m.id, m]));
 
   interface FilaItem {
@@ -145,26 +152,33 @@ export async function confirmarItemsPedido(
     }
   }
 
-  const nuevoSubtotal = filasItems.reduce(
-    (acc, fila) => acc + BigInt(fila.subtotal_cop),
-    BigInt(pedido.subtotal_cop),
-  );
-  const actualizacion: { subtotal_cop: number; total_cop: number; estado?: "enviado_cocina" } = {
-    subtotal_cop: Number(nuevoSubtotal),
-    total_cop: Number(nuevoSubtotal),
-  };
-  if (pedido.estado === "abierto") {
-    actualizacion.estado = "enviado_cocina";
-  }
-  const { error: errorTotales } = await supabase
-    .from("pedidos")
-    .update(actualizacion)
-    .eq("id", pedidoId);
+  // Recalcula subtotal_cop/total_cop con un SUM fresco sobre pedido_items en
+  // la base de datos (función `recalcular_totales_pedido`, security invoker)
+  // en vez de sumar sobre el `pedido.subtotal_cop` leído al inicio de esta
+  // acción: esa lectura queda obsoleta si dos llamadas se solapan (doble tap,
+  // reintento de cliente) y un UPDATE client-side pisaría la otra.
+  const { error: errorTotales } = await supabase.rpc("recalcular_totales_pedido", {
+    p_pedido_id: pedidoId,
+  });
   if (errorTotales) {
     return err({
       codigo: "BASE_DATOS",
       mensaje: "Los productos se guardaron, pero no pudimos actualizar el total. Recarga la página.",
     });
+  }
+
+  const nuevoEstado = siguienteEstadoTrasEnvio(pedido.estado);
+  if (nuevoEstado) {
+    const { error: errorEstado } = await supabase
+      .from("pedidos")
+      .update({ estado: nuevoEstado })
+      .eq("id", pedidoId);
+    if (errorEstado) {
+      return err({
+        codigo: "BASE_DATOS",
+        mensaje: "Los productos se guardaron, pero no pudimos enviar el pedido a cocina. Recarga la página.",
+      });
+    }
   }
 
   revalidatePath(`/pedido/${pedidoId}`);

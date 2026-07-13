@@ -531,6 +531,10 @@ export type Database = {
     Functions: {
       current_rol: { Args: never; Returns: string }
       current_sede_id: { Args: never; Returns: string }
+      recalcular_totales_pedido: {
+        Args: { p_pedido_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       canal_pedido: "mesa" | "domicilio" | "llevar"
