@@ -7,6 +7,7 @@ import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { enviarPedidoSchema, type EnviarPedidoInput } from "@/lib/validations/pedido";
+import { motivoCancelacionSchema, type MotivoCancelacionInput } from "@/lib/validations/cancelacion";
 import { calcularSubtotalItem, type ItemParaTotal } from "@/lib/pedido/totales";
 import { siguienteNumeroCorto } from "@/lib/pedido/numeroCorto";
 import { limitesDeHoyBogota } from "@/lib/dates";
@@ -267,4 +268,38 @@ export async function crearPedidoConItems(
   }
 
   return ok({ pedidoId: pedido.id });
+}
+
+/** Cancela un pedido propio antes de cobrarlo (ej. el cliente se retira).
+ *  Estado distinto de `anulado` -- ese es exclusivo de la reversión admin
+ *  post-cobro (Bloque 8, CLAUDE.md §2.2). El RPC libera la mesa si aplica. */
+export async function cancelarPedido(
+  pedidoId: string,
+  input: MotivoCancelacionInput,
+): Promise<Result<null, DomainError>> {
+  const ctx = await exigirVendedora();
+  if (!ctx.ok) return ctx;
+  if (!uuidValido(pedidoId)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador de pedido inválido" });
+  }
+  const parsed = motivoCancelacionSchema.safeParse(input);
+  if (!parsed.success) {
+    return err({ codigo: "VALIDACION", mensaje: parsed.error.issues[0]?.message ?? "Datos inválidos" });
+  }
+  const supabase = await createServerSupabase();
+
+  const { error } = await supabase.rpc("cancelar_pedido", {
+    p_pedido_id: pedidoId,
+    p_motivo: parsed.data.motivo,
+  });
+  if (error) {
+    return err({
+      codigo: "VALIDACION",
+      mensaje: "No pudimos cancelar el pedido. Verifica que no esté ya cobrado e intenta de nuevo.",
+    });
+  }
+
+  revalidatePath(`/pedido/${pedidoId}`);
+  revalidatePath("/inicio");
+  return ok(null);
 }
