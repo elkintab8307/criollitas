@@ -1,0 +1,66 @@
+import { formatearCOP, type MontoCOP } from "@/lib/money";
+import { formatearFecha } from "@/lib/dates";
+
+export interface ItemTicket {
+  cantidad: number;
+  nombre: string;
+  subtotalCop: MontoCOP;
+}
+
+export interface PagoTicket {
+  metodo: string;
+  montoCop: MontoCOP;
+}
+
+export interface DatosTicket {
+  sedeNombre: string;
+  numeroCorto: number;
+  fecha: Date;
+  origen: string;
+  items: ItemTicket[];
+  subtotalCop: MontoCOP;
+  totalCop: MontoCOP;
+  pagos: PagoTicket[];
+}
+
+const ETIQUETA_METODO: Record<string, string> = {
+  efectivo: "Efectivo",
+  nequi: "Nequi",
+  daviplata: "Daviplata",
+  bancolombia_qr: "Bancolombia QR",
+  datafono: "Datáfono",
+  otro: "Otro",
+};
+
+/** Arma las líneas de texto de la tirilla de cobro (CLAUDE.md §2.6, §10.2).
+ *  Función pura: no sabe nada de ESC/POS, solo decide qué contenido va y en
+ *  qué orden — la codificación a bytes vive en codificarEscPos. */
+export function construirLineasTicket(datos: DatosTicket): string[] {
+  const lineas: string[] = [];
+  // Guion simple, no em dash: codificarEscPos codifica con Buffer "binary"
+  // (latin1, 1 byte por carácter, lo que entienden las impresoras
+  // térmicas) — un em dash (U+2014) queda fuera de ese rango y se
+  // corrompe en bytes reales. Tildes/¡/@ sí sobreviven (≤ U+00FF).
+  lineas.push("Criollitas - Arepas Rellenas");
+  lineas.push(datos.sedeNombre);
+  lineas.push("--------------------------------");
+  lineas.push(`Pedido #${datos.numeroCorto}`);
+  lineas.push(formatearFecha(datos.fecha));
+  lineas.push(datos.origen);
+  lineas.push("--------------------------------");
+  for (const item of datos.items) {
+    lineas.push(`${item.cantidad}x ${item.nombre}`);
+    lineas.push(`  ${formatearCOP(item.subtotalCop)}`);
+  }
+  lineas.push("--------------------------------");
+  lineas.push(`Subtotal: ${formatearCOP(datos.subtotalCop)}`);
+  lineas.push(`TOTAL: ${formatearCOP(datos.totalCop)}`);
+  lineas.push("--------------------------------");
+  for (const pago of datos.pagos) {
+    lineas.push(`${ETIQUETA_METODO[pago.metodo] ?? pago.metodo}: ${formatearCOP(pago.montoCop)}`);
+  }
+  lineas.push("--------------------------------");
+  lineas.push("¡Gracias por tu compra!");
+  lineas.push("@criollitas_armenia");
+  return lineas;
+}

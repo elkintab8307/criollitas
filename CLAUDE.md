@@ -112,6 +112,8 @@ abierto → enviado_cocina → en_preparacion → listo → entregado → cobrad
                                                                        ↘ anulado
 ```
 
+`entregado` no es un paso obligatorio antes de `cobrado`: la Cajera cobra directo desde `listo` o desde `entregado` indistintamente (ambos significan "la comida ya salió de cocina, se puede cobrar") — no existe un flujo de "marcar entregado" separado; `cobrarPedido` transiciona a `cobrado` desde cualquiera de los dos.
+
 Un pedido anulado exige motivo y queda en auditoría. Solo Administrador anula pedidos ya cobrados (reversión con nota).
 
 ### 2.3 Métodos de pago soportados
@@ -311,7 +313,7 @@ criollitas-os/
 - Toda tabla con datos operativos lleva `sede_id`.
 - Se define una función `public.current_sede_id()` y `public.current_rol()` que leen del `raw_app_meta_data` del JWT.
 - **Vendedora:** SELECT/INSERT/UPDATE sobre pedidos de su sede que ella creó (`vendedora_id = auth.uid()`), mientras `estado` no sea `cobrado`, `cerrado` ni `anulado` (permite seguir agregando ítems después de enviar a cocina).
-- **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. INSERT sobre `pagos`, `turnos_caja`, `movimientos_caja`. UPDATE sobre `pedidos` para cambiar a `cobrado`.
+- **Cajera:** SELECT sobre todos los pedidos de su sede en estados `listo`/`entregado`/`cobrado`. Sobre `pedidos` solo puede escribir `estado` (limitado al literal `cobrado`, desde `listo`/`entregado`); ninguna otra columna, vía el mismo patrón de trigger de columnas que cocina/vendedora. Un solo turno `abierto` a la vez (índice único parcial); su UPDATE de `turnos_caja` está restringido por trigger a los campos de cierre. `pagos`/`movimientos_caja` son de solo INSERT/SELECT (inmutables, sin política de UPDATE/DELETE para ningún rol). `impresiones` admite además UPDATE, para reintentar una impresión fallida. `cobrarPedido`/`cerrarTurno` son RPCs atómicos con lock explícito sobre la fila que protegen (`turnos_caja`/`pedidos`), evitando condiciones de carrera entre un cobro y un cierre de turno concurrentes.
 - **Administrador:** acceso total a su(s) sede(s). Un admin global (`is_super_admin = true`) ve todas.
 - **Cocina:** rol especial `cocina`, SELECT sobre pedidos `enviado_cocina`/`en_preparacion`/`listo`. UPDATE de `pedido_items` restringido a nivel de columna a `estado_item`/`tiempo_listo_en`. Sobre `pedidos` solo puede escribir `estado` (limitado a esos mismos 3 valores) y `enviado_cocina_en`; ninguna otra columna, vía un trigger que rechaza el UPDATE si cambia algo más. Un RPC atómico hace ambas escrituras (ítem + agregado) en una sola sentencia: el agregado del pedido se recalcula solo cuando todos sus ítems coinciden.
 
@@ -366,8 +368,11 @@ pagos                (id, pedido_id, turno_id, metodo, monto_cop, referencia,
                      --           datafono, otro}
 
 impresiones          (id, pedido_id, tipo, contenido_escpos, enviado_en,
-                      exito, error)
+                      exito, error, creado_en)
                      -- tipo ∈ {comanda_cocina, tirilla_cobro, copia}
+                     -- el bloque 7 solo produce tipo='tirilla_cobro';
+                     --   comanda_cocina/copia quedan reservados para uso
+                     --   futuro, la columna es texto libre, no un enum
 
 auditoria            (id, sede_id, usuario_id, accion, tabla, registro_id,
                       diff_json, creado_en)
