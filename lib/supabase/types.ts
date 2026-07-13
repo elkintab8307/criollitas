@@ -39,6 +39,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      anulaciones: {
+        Row: {
+          creado_en: string
+          id: string
+          motivo: string
+          pedido_id: string
+          usuario_id: string
+        }
+        Insert: {
+          creado_en?: string
+          id?: string
+          motivo: string
+          pedido_id: string
+          usuario_id: string
+        }
+        Update: {
+          creado_en?: string
+          id?: string
+          motivo?: string
+          pedido_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anulaciones_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anulaciones_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auditoria: {
+        Row: {
+          accion: string
+          creado_en: string
+          diff_json: Json
+          id: string
+          registro_id: string
+          sede_id: string | null
+          tabla: string
+          usuario_id: string | null
+        }
+        Insert: {
+          accion: string
+          creado_en?: string
+          diff_json: Json
+          id?: string
+          registro_id: string
+          sede_id?: string | null
+          tabla: string
+          usuario_id?: string | null
+        }
+        Update: {
+          accion?: string
+          creado_en?: string
+          diff_json?: Json
+          id?: string
+          registro_id?: string
+          sede_id?: string | null
+          tabla?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auditoria_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auditoria_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categorias: {
         Row: {
           activa: boolean
@@ -715,6 +802,10 @@ export type Database = {
           p_nuevo_estado: Database["public"]["Enums"]["estado_item_pedido"]
           p_pedido_item_id: string
         }
+        Returns: undefined
+      }
+      anular_pedido: {
+        Args: { p_motivo: string; p_pedido_id: string }
         Returns: undefined
       }
       cerrar_turno: {
