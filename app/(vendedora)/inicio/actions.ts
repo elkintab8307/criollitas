@@ -85,20 +85,6 @@ export async function crearPedidoMesa(
     return err({ codigo: "BASE_DATOS", mensaje: "No pudimos crear el pedido. Intenta de nuevo." });
   }
 
-  const { error: errorOcupar } = await supabase
-    .from("mesas")
-    .update({ estado: "ocupada" })
-    .eq("id", mesaId);
-  if (errorOcupar) {
-    // El pedido ya se creó; no lo revertimos (perder el trabajo de la vendedora
-    // sería peor). La mesa queda desincronizada del pedido — caso raro, se
-    // corrige a mano desde /mesas.
-    return err({
-      codigo: "BASE_DATOS",
-      mensaje: "El pedido se creó, pero no pudimos marcar la mesa como ocupada. Avisa al administrador.",
-    });
-  }
-
   revalidatePath("/inicio");
   return ok({ pedidoId: pedido.id });
 }
