@@ -18,7 +18,7 @@ const datosBase: DatosTicket = {
 describe("construirLineasTicket", () => {
   it("incluye el nombre de la marca y la sede", () => {
     const lineas = construirLineasTicket(datosBase);
-    expect(lineas).toContain("Criollitas — Arepas Rellenas");
+    expect(lineas).toContain("Criollitas - Arepas Rellenas");
     expect(lineas).toContain("Criollitas Armenia");
   });
 

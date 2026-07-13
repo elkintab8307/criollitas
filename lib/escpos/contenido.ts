@@ -37,7 +37,11 @@ const ETIQUETA_METODO: Record<string, string> = {
  *  qué orden — la codificación a bytes vive en codificarEscPos. */
 export function construirLineasTicket(datos: DatosTicket): string[] {
   const lineas: string[] = [];
-  lineas.push("Criollitas — Arepas Rellenas");
+  // Guion simple, no em dash: codificarEscPos codifica con Buffer "binary"
+  // (latin1, 1 byte por carácter, lo que entienden las impresoras
+  // térmicas) — un em dash (U+2014) queda fuera de ese rango y se
+  // corrompe en bytes reales. Tildes/¡/@ sí sobreviven (≤ U+00FF).
+  lineas.push("Criollitas - Arepas Rellenas");
   lineas.push(datos.sedeNombre);
   lineas.push("--------------------------------");
   lineas.push(`Pedido #${datos.numeroCorto}`);
