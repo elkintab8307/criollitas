@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { LogoCriollitas } from "@/components/ui/LogoCriollitas";
 import { BotonCerrarSesion } from "@/components/auth/BotonCerrarSesion";
 
 export default async function VendedoraLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +17,8 @@ export default async function VendedoraLayout({ children }: { children: React.Re
 
   return (
     <div className="min-h-dvh bg-brand-chocolate">
-      <header className="flex items-center justify-between border-b border-white/10 px-8 py-6">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 bg-brand-chocolate px-8 py-4">
+        <LogoCriollitas size="md" />
         <Link
           href="/inicio"
           className="inline-flex items-center gap-2 font-display text-lg text-brand-crema/70 transition-colors duration-150 hover:text-brand-crema focus-visible:outline-3 focus-visible:outline-brand-mostaza focus-visible:outline-offset-2"
@@ -24,7 +26,7 @@ export default async function VendedoraLayout({ children }: { children: React.Re
           <ArrowLeft size={20} aria-hidden="true" />
           Ventas
         </Link>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-6">
           {esCajera ? (
             <Link
               href="/pedidos"
