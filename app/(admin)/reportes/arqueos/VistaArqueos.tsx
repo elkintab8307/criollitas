@@ -1,15 +1,40 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ClayCard } from "@/components/ui/ClayCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { ClayBadge } from "@/components/ui/ClayBadge";
 import { SelectorRangoFecha } from "@/components/reportes/SelectorRangoFecha";
 import { BotonExportar } from "@/components/reportes/BotonExportar";
+import { TablaReporte, type ColumnaReporte } from "@/components/reportes/TablaReporte";
 import { formatearCOP } from "@/lib/money";
 import { formatearFecha } from "@/lib/dates";
 import { resolverRangoPreset, type RangoFechas } from "@/lib/reportes/rangosFecha";
 import { obtenerReporteArqueos, type FilaArqueo } from "./actions";
+
+const columnasArqueos: ColumnaReporte<FilaArqueo>[] = [
+  { clave: "cajeraNombre", encabezado: "Cajera" },
+  { clave: "abiertoEn", encabezado: "Apertura", render: (f) => formatearFecha(new Date(f.abiertoEn)) },
+  { clave: "cerradoEn", encabezado: "Cierre", render: (f) => formatearFecha(new Date(f.cerradoEn)) },
+  {
+    clave: "esperadoCop",
+    encabezado: "Esperado",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.esperadoCop))}</span>,
+  },
+  {
+    clave: "declaradoCop",
+    encabezado: "Declarado",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.declaradoCop))}</span>,
+  },
+  {
+    clave: "diferenciaCop",
+    encabezado: "Diferencia",
+    render: (f) => (
+      <ClayBadge variant={f.diferenciaCop === 0 ? "exito" : "peligro"}>
+        {formatearCOP(BigInt(f.diferenciaCop))}
+      </ClayBadge>
+    ),
+  },
+];
 
 export function VistaArqueos() {
   const [rango, setRango] = useState<RangoFechas>(() => resolverRangoPreset("mes"));
@@ -61,36 +86,7 @@ export function VistaArqueos() {
             <StatCard titulo="Suma de diferencias" valor={formatearCOP(BigInt(stats.sumaDiferencias))} />
           </div>
 
-          <ClayCard variant="flat" className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-black/10 text-text-secondary">
-                  <th className="py-2 pr-4">Cajera</th>
-                  <th className="py-2 pr-4">Apertura</th>
-                  <th className="py-2 pr-4">Cierre</th>
-                  <th className="py-2 pr-4">Esperado</th>
-                  <th className="py-2 pr-4">Declarado</th>
-                  <th className="py-2 pr-4">Diferencia</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((f) => (
-                  <tr key={f.turnoId} className="border-b border-black/5 text-text-primary">
-                    <td className="py-2 pr-4">{f.cajeraNombre}</td>
-                    <td className="py-2 pr-4">{formatearFecha(new Date(f.abiertoEn))}</td>
-                    <td className="py-2 pr-4">{formatearFecha(new Date(f.cerradoEn))}</td>
-                    <td className="py-2 pr-4 font-mono">{formatearCOP(BigInt(f.esperadoCop))}</td>
-                    <td className="py-2 pr-4 font-mono">{formatearCOP(BigInt(f.declaradoCop))}</td>
-                    <td className="py-2 pr-4">
-                      <ClayBadge variant={f.diferenciaCop === 0 ? "exito" : "peligro"}>
-                        {formatearCOP(BigInt(f.diferenciaCop))}
-                      </ClayBadge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ClayCard>
+          <TablaReporte columnas={columnasArqueos} filas={filas} claveFila={(f) => f.turnoId} />
           <BotonExportar
             filas={filas as unknown as Record<string, unknown>[]}
             columnas={[
