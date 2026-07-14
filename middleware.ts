@@ -1,7 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-import { esRutaPublica, normalizarRol, resolverAccesoRuta } from "@/lib/auth/roles";
+import { verificarAccessTokenLocal } from "@/lib/auth/jwtLocal";
+import { esRutaPublica, normalizarRol, resolverAccesoRuta, type Rol } from "@/lib/auth/roles";
+import {
+  COOKIE_SESION_OFFLINE,
+  crearTokenSesionOffline,
+  verificarTokenSesionOffline,
+} from "@/lib/auth/sesionOffline";
+import { esErrorDeRed } from "@/lib/conectividad/errorRed";
+import { reportarExito, reportarFalloDeRed } from "@/lib/conectividad/estado";
+
+// better-sqlite3/jose con caché en disco (Fase 1+) requieren Node, no Edge.
+export const runtime = "nodejs";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -22,25 +33,65 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const ruta = request.nextUrl.pathname;
   const esPublica = esRutaPublica(ruta);
 
-  if (!user) {
+  let rol: Rol | null = null;
+  let hayUsuario = false;
+
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error && esErrorDeRed(error)) {
+      throw error;
+    }
+    reportarExito();
+    hayUsuario = Boolean(data.user);
+    if (data.user) {
+      rol = normalizarRol(data.user.app_metadata?.rol);
+      // Contacto online exitoso: renueva la ventana de sesión offline para
+      // que, si la red se cae después, la sesión siga viva hasta 12h desde
+      // AHORA (nunca se extiende a partir de una validación offline previa).
+      // Aislado en su propio try/catch: si OFFLINE_SESSION_SECRET falta o
+      // falla la firma, eso NUNCA debe tumbar el login online normal.
+      if (rol) {
+        try {
+          const token = await crearTokenSesionOffline({
+            usuarioId: data.user.id,
+            rol,
+            sedeId: (data.user.app_metadata?.sede_id as string | undefined) ?? "",
+          });
+          response.cookies.set(COOKIE_SESION_OFFLINE, token, {
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            maxAge: 60 * 60 * 12,
+          });
+        } catch {
+          // Sin OFFLINE_SESSION_SECRET configurado (o error de firma): la
+          // sesión offline extendida simplemente no queda disponible esta
+          // vez. El login online sigue funcionando con normalidad.
+        }
+      }
+    }
+  } catch (error) {
+    if (!esErrorDeRed(error)) {
+      // Error real de dominio/auth (token corrupto, etc.), no de red:
+      // comportamiento sin cambios respecto a hoy — sesión inválida.
+      hayUsuario = false;
+      rol = null;
+    } else {
+      reportarFalloDeRed();
+      const resultado = await resolverIdentidadOffline(supabase, request);
+      hayUsuario = resultado !== null;
+      rol = resultado?.rol ?? null;
+    }
+  }
+
+  if (!hayUsuario) {
     return esPublica ? response : NextResponse.redirect(new URL("/login", request.url));
   }
 
   const pinValidado = request.cookies.get("pin_validado")?.value === "1";
-  // Se valida el claim contra los roles conocidos: un valor corrupto o
-  // legado (ej. "gerente") se trata como sesión sin rol, nunca se castea
-  // a ciegas (evita llegar a rutaPorRol() con un rol inexistente).
-  // Se lee de app_metadata (no user_metadata): solo el service role puede
-  // escribirlo, así que el propio usuario no puede autopromoverse.
-  const rol = normalizarRol(user.app_metadata?.rol);
-
   if (!pinValidado && !esPublica) {
     return NextResponse.redirect(new URL("/pin", request.url));
   }
@@ -64,6 +115,50 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(decision.destino, request.url));
   }
   return response;
+}
+
+/**
+ * Sin red hacia Supabase: intenta reconstruir la identidad sin llamar a
+ * getUser(). Dos niveles, del más al menos estricto:
+ *
+ * 1. El access_token todavía presente en la cookie de sesión (leído vía
+ *    getSession(), que a diferencia de getUser() NUNCA llama a la red —
+ *    solo decodifica lo que ya está en la cookie) se valida localmente
+ *    (firma + expiración) con lib/auth/jwtLocal.ts.
+ * 2. Si ese token ya expiró (jwt_expiry=3600, y sin red no hay refresh
+ *    posible), se cae a la cookie `sesion_offline`: una ventana extendida
+ *    de hasta 12h desde el último contacto online exitoso.
+ *
+ * Si ninguno es válido, la sesión se trata como no autenticada — "offline"
+ * nunca significa "saltarse la autenticación".
+ */
+async function resolverIdentidadOffline(
+  supabase: ReturnType<typeof createServerClient>,
+  request: NextRequest,
+): Promise<{ rol: Rol | null } | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (accessToken) {
+      const payload = await verificarAccessTokenLocal(accessToken);
+      if (payload) {
+        const appMetadata = payload.app_metadata as Record<string, unknown> | undefined;
+        return { rol: normalizarRol(appMetadata?.rol) };
+      }
+    }
+  } catch {
+    // getSession() no debería llamar a la red, pero si de todos modos
+    // falla, se cae a la ventana de sesión offline de abajo.
+  }
+
+  const sesionOffline = await verificarTokenSesionOffline(
+    request.cookies.get(COOKIE_SESION_OFFLINE)?.value,
+  );
+  if (sesionOffline) {
+    return { rol: sesionOffline.rol };
+  }
+
+  return null;
 }
 
 // Las rutas /api/* quedan excluidas del middleware: deben autenticarse

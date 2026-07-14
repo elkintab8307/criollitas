@@ -551,6 +551,30 @@ Cada uno vive en `components/ui/` y expone variantes vía `cva` (`class-variance
    - `/mesas` (CRUD + vista de estado) pertenece a `admin` desde el bloque 4; la vista de la vendedora para seleccionar mesa llega en el bloque 5 (reutiliza `GrillaMesas` en modo solo lectura).
 4. La ruta `/(cocina)/kds` puede exponerse en modo kiosco con un token de sede (no requiere PIN de usuario), configurable por Admin.
 
+### 9.1 Resiliencia offline (Fase 0 del modo offline)
+
+El servidor Next.js corre localmente en la PC del restaurante (servicio de
+Windows), pero `getUser()` llama a la red de Supabase. Si esa llamada falla
+por conectividad (`lib/conectividad/errorRed.ts` clasifica el error), el
+middleware **no** trata la ruta como no autenticada de inmediato — intenta
+reconstruir la identidad sin red, en este orden:
+
+1. `supabase.auth.getSession()` (a diferencia de `getUser()`, nunca llama a
+   la red — solo decodifica la cookie) para leer el `access_token` ya
+   emitido, verificado localmente con `lib/auth/jwtLocal.ts` (JWKS o
+   `SUPABASE_JWT_SECRET`, autodetectado).
+2. Si ese token ya expiró (`jwt_expiry=3600`) y no hay red para refrescarlo,
+   cae a la cookie `sesion_offline` (`lib/auth/sesionOffline.ts`): ventana
+   dura de 12h desde el último `getUser()` exitoso, firmada con
+   `OFFLINE_SESSION_SECRET`.
+3. Si ninguno es válido, sesión no autenticada — "offline" nunca significa
+   saltarse la autenticación.
+
+`lib/conectividad/estado.ts` mantiene el estado en memoria (con histéresis)
+consultado por `app/api/conectividad/route.ts` y mostrado en
+`components/ui/BannerConectividad.tsx`. Fases 1-3 (outbox de escritura para
+pedidos/cocina/cobro) son un proyecto aparte, no implementadas todavía.
+
 ---
 
 ## 10. Impresión POS — arquitectura
@@ -638,6 +662,9 @@ NEXT_PUBLIC_APP_TZ=America/Bogota
 NEXT_PUBLIC_APP_LOCALE=es-CO
 NEXT_PUBLIC_APP_CURRENCY=COP
 NEXT_PUBLIC_SEDE_ID=
+
+OFFLINE_SESSION_SECRET=               # solo servidor, firma la cookie de sesión offline (§9)
+SUPABASE_JWT_SECRET=                  # solo servidor, respaldo si el proyecto usa HS256 en vez de JWKS (§9)
 ```
 
 Nunca commitear `.env.local`. `.env.example` sí, con placeholders.

@@ -40,6 +40,9 @@ yarn-error.log*
 # logs locales del servicio/tarea de respaldo (no se versionan)
 /logs
 
+# configuración local de Claude Code (no se comparte en el repo)
+/.claude
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
