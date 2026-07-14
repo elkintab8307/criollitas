@@ -15,7 +15,7 @@ export default async function PinPage() {
   );
   const usuarios: UsuarioPin[] = res.ok ? await res.json() : [];
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
+    <main className="flex flex-1 items-center justify-center p-6">
       <PinPad usuarios={usuarios} />
     </main>
   );
