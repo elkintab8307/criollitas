@@ -43,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.superpowers/
+
+# assets de origen del usuario, no destinados al repo -- la copia
+# canónica que sirve el sitio vive en public/
+/archivos/
