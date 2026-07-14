@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import { ClayCard } from "@/components/ui/ClayCard";
 import { SelectorRangoFecha } from "@/components/reportes/SelectorRangoFecha";
 import { BotonExportar } from "@/components/reportes/BotonExportar";
+import { TablaReporte, type ColumnaReporte } from "@/components/reportes/TablaReporte";
 import { formatearCOP } from "@/lib/money";
 import { resolverRangoPreset, type RangoFechas } from "@/lib/reportes/rangosFecha";
 import { obtenerReporteCanales, type FilaCanal } from "./actions";
@@ -16,6 +17,17 @@ const ETIQUETA_CANAL: Record<string, string> = {
   domicilio: "Domicilio",
   llevar: "Para llevar",
 };
+
+const columnasCanales: ColumnaReporte<FilaCanal>[] = [
+  { clave: "canal", encabezado: "Canal", render: (f) => ETIQUETA_CANAL[f.canal] ?? f.canal },
+  {
+    clave: "totalCop",
+    encabezado: "Total",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.totalCop))}</span>,
+  },
+  { clave: "numPedidos", encabezado: "Pedidos" },
+  { clave: "porcentaje", encabezado: "%", render: (f) => `${f.porcentaje.toFixed(1)}%` },
+];
 
 export function VistaCanales() {
   const [rango, setRango] = useState<RangoFechas>(() => resolverRangoPreset("mes"));
@@ -69,28 +81,7 @@ export function VistaCanales() {
               </PieChart>
             </ResponsiveContainer>
           </ClayCard>
-          <ClayCard variant="flat" className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-black/10 text-text-secondary">
-                  <th className="py-2 pr-4">Canal</th>
-                  <th className="py-2 pr-4">Total</th>
-                  <th className="py-2 pr-4">Pedidos</th>
-                  <th className="py-2 pr-4">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((f) => (
-                  <tr key={f.canal} className="border-b border-black/5 text-text-primary">
-                    <td className="py-2 pr-4">{ETIQUETA_CANAL[f.canal] ?? f.canal}</td>
-                    <td className="py-2 pr-4 font-mono">{formatearCOP(BigInt(f.totalCop))}</td>
-                    <td className="py-2 pr-4">{f.numPedidos}</td>
-                    <td className="py-2 pr-4">{f.porcentaje.toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ClayCard>
+          <TablaReporte columnas={columnasCanales} filas={filas} claveFila={(f) => f.canal} />
           <BotonExportar
             filas={filas as unknown as Record<string, unknown>[]}
             columnas={[

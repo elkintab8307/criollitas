@@ -31,7 +31,7 @@ export default function ReportesLayout({ children }: { children: React.ReactNode
     <div>
       <nav
         aria-label="Navegación de reportes"
-        className="flex gap-2 border-b border-white/10 px-8 pt-8"
+        className="flex flex-wrap gap-2 border-b border-white/10 px-8 pt-8"
       >
         {TABS.map(({ href, etiqueta }) => {
           const activo = esActivo(pathname, href);
