@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -61,6 +62,13 @@ export async function abrirTurno(input: unknown): Promise<Result<{ turnoId: stri
   if (!data) {
     return err({ codigo: "BASE_DATOS", mensaje: "No pudimos abrir el turno. Intenta de nuevo." });
   }
+  const cookieStore = await cookies();
+  cookieStore.set("turno_abierto", "1", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 12,
+  });
   revalidatePath("/mi-turno");
   return ok({ turnoId: data.id });
 }
@@ -113,6 +121,8 @@ export async function cerrarTurno(input: unknown): Promise<Result<null, DomainEr
   if (error) {
     return err({ codigo: "BASE_DATOS", mensaje: "No pudimos cerrar el turno. Intenta de nuevo." });
   }
+  const cookieStore = await cookies();
+  cookieStore.delete("turno_abierto");
   revalidatePath("/mi-turno");
   return ok(null);
 }
