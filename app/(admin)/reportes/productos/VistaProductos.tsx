@@ -6,11 +6,23 @@ import { ClayCard } from "@/components/ui/ClayCard";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { SelectorRangoFecha } from "@/components/reportes/SelectorRangoFecha";
 import { BotonExportar } from "@/components/reportes/BotonExportar";
+import { TablaReporte, type ColumnaReporte } from "@/components/reportes/TablaReporte";
 import { formatearCOP } from "@/lib/money";
 import { resolverRangoPreset, type RangoFechas } from "@/lib/reportes/rangosFecha";
 import { obtenerReporteProductos, type FilaProducto } from "./actions";
 
 type CriterioOrden = "unidades" | "ingreso";
+
+const columnasProductos: ColumnaReporte<FilaProducto>[] = [
+  { clave: "nombre", encabezado: "Producto" },
+  { clave: "categoriaNombre", encabezado: "Categoría" },
+  { clave: "unidades", encabezado: "Unidades" },
+  {
+    clave: "ingresoCop",
+    encabezado: "Ingreso",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.ingresoCop))}</span>,
+  },
+];
 
 export function VistaProductos() {
   const [rango, setRango] = useState<RangoFechas>(() => resolverRangoPreset("mes"));
@@ -106,28 +118,7 @@ export function VistaProductos() {
 
       {filasOrdenadas.length > 0 ? (
         <>
-          <ClayCard variant="flat" className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-black/10 text-text-secondary">
-                  <th className="py-2 pr-4">Producto</th>
-                  <th className="py-2 pr-4">Categoría</th>
-                  <th className="py-2 pr-4">Unidades</th>
-                  <th className="py-2 pr-4">Ingreso</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filasOrdenadas.map((f) => (
-                  <tr key={f.productoId} className="border-b border-black/5 text-text-primary">
-                    <td className="py-2 pr-4">{f.nombre}</td>
-                    <td className="py-2 pr-4">{f.categoriaNombre}</td>
-                    <td className="py-2 pr-4">{f.unidades}</td>
-                    <td className="py-2 pr-4 font-mono">{formatearCOP(BigInt(f.ingresoCop))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ClayCard>
+          <TablaReporte columnas={columnasProductos} filas={filasOrdenadas} claveFila={(f) => f.productoId} />
           <BotonExportar
             filas={filasOrdenadas as unknown as Record<string, unknown>[]}
             columnas={[

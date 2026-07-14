@@ -5,11 +5,23 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import { ClayCard } from "@/components/ui/ClayCard";
 import { SelectorRangoFecha } from "@/components/reportes/SelectorRangoFecha";
 import { BotonExportar } from "@/components/reportes/BotonExportar";
+import { TablaReporte, type ColumnaReporte } from "@/components/reportes/TablaReporte";
 import { formatearCOP } from "@/lib/money";
 import { resolverRangoPreset, type RangoFechas } from "@/lib/reportes/rangosFecha";
 import { obtenerReporteCategorias, type FilaCategoria } from "./actions";
 
 const COLORES = ["#F5B822", "#7CB342", "#D84315", "#52281A", "#D69A0C", "#9CCC65"];
+
+const columnasCategorias: ColumnaReporte<FilaCategoria>[] = [
+  { clave: "categoriaNombre", encabezado: "Categoría" },
+  { clave: "unidades", encabezado: "Unidades" },
+  {
+    clave: "ingresoCop",
+    encabezado: "Ingreso",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.ingresoCop))}</span>,
+  },
+  { clave: "porcentaje", encabezado: "%", render: (f) => `${f.porcentaje.toFixed(1)}%` },
+];
 
 export function VistaCategorias() {
   const [rango, setRango] = useState<RangoFechas>(() => resolverRangoPreset("mes"));
@@ -63,28 +75,7 @@ export function VistaCategorias() {
               </PieChart>
             </ResponsiveContainer>
           </ClayCard>
-          <ClayCard variant="flat" className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-black/10 text-text-secondary">
-                  <th className="py-2 pr-4">Categoría</th>
-                  <th className="py-2 pr-4">Unidades</th>
-                  <th className="py-2 pr-4">Ingreso</th>
-                  <th className="py-2 pr-4">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((f) => (
-                  <tr key={f.categoriaId} className="border-b border-black/5 text-text-primary">
-                    <td className="py-2 pr-4">{f.categoriaNombre}</td>
-                    <td className="py-2 pr-4">{f.unidades}</td>
-                    <td className="py-2 pr-4 font-mono">{formatearCOP(BigInt(f.ingresoCop))}</td>
-                    <td className="py-2 pr-4">{f.porcentaje.toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ClayCard>
+          <TablaReporte columnas={columnasCategorias} filas={filas} claveFila={(f) => f.categoriaId} />
           <BotonExportar
             filas={filas as unknown as Record<string, unknown>[]}
             columnas={[
