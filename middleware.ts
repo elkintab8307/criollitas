@@ -100,14 +100,37 @@ export async function middleware(request: NextRequest) {
   // Bloque F: la cajera debe declarar el dinero base (abrir turno) antes de
   // usar cualquier otra ruta suya -- incluidas /inicio, /pedido, /mis-pedidos
   // del Bloque E. turno_abierto es una cookie (mismo patrón que
-  // pin_validado), no una consulta a base de datos en cada request: si se
-  // pierde mientras sí hay un turno abierto real, /turno/abrir ya se
-  // auto-redirige a /mi-turno al detectarlo, y las Server Actions de caja
-  // validan un turno abierto real en cada llamada de todas formas.
+  // pin_validado) para no consultar base de datos en cada request.
   const turnoAbierto = request.cookies.get("turno_abierto")?.value === "1";
   const rutaExentaDeTurno = ruta === "/turno/abrir" || ruta === "/mi-turno" || ruta.startsWith("/mi-turno/");
   if (rol === "cajera" && !turnoAbierto && !rutaExentaDeTurno) {
-    return NextResponse.redirect(new URL("/turno/abrir", request.url));
+    // Bug real encontrado en uso: la cookie expira a las 12h (mismo maxAge
+    // que pin_validado), pero un turno de restaurante puede durar más --
+    // cuando expira con el turno todavía abierto en base de datos, un
+    // Server Component (/turno/abrir) no puede volver a fijarla (solo se
+    // puede desde Server Actions/Route Handlers/middleware), así que su
+    // auto-redirección a /mi-turno dejaba a la cajera atascada: cualquier
+    // clic que disparara un Server Action en /cobrar o /turno/movimientos
+    // volvía a chocar contra este mismo bloqueo, sin ningún error visible.
+    // Autocuración: antes de bloquear, se verifica una sola vez si de
+    // verdad no hay turno abierto -- si sí lo hay, se refresca la cookie
+    // aquí (el middleware sí puede fijarla) y se deja pasar.
+    const { data: turnoFila } = await supabase
+      .from("turnos_caja")
+      .select("id")
+      .eq("cajera_id", user.id)
+      .eq("estado", "abierto")
+      .maybeSingle();
+    if (turnoFila) {
+      response.cookies.set("turno_abierto", "1", {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 12,
+      });
+    } else {
+      return NextResponse.redirect(new URL("/turno/abrir", request.url));
+    }
   }
 
   const decision = resolverAccesoRuta(rol, ruta);
