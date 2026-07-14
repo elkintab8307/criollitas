@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
 import { formatearCOP, montoDesdePesos, sumar, type MontoCOP } from "@/lib/money";
-import { pagosCuadranConTotal } from "@/lib/caja/cuadrePago";
+import { calcularVuelto, pagosCuadranConTotal } from "@/lib/caja/cuadrePago";
 import type { PagoInput } from "@/lib/validations/cobro";
 import { cobrarPedido } from "@/app/(cajera)/cobrar/actions";
 
@@ -22,6 +22,7 @@ interface FilaPago {
   clave: string;
   metodo: PagoInput["metodo"];
   montoPesos: number;
+  entregaPesos: number;
 }
 
 interface FormularioCobroProps {
@@ -31,7 +32,9 @@ interface FormularioCobroProps {
 
 export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
   const router = useRouter();
-  const [pagos, setPagos] = useState<FilaPago[]>([{ clave: crypto.randomUUID(), metodo: "efectivo", montoPesos: 0 }]);
+  const [pagos, setPagos] = useState<FilaPago[]>([
+    { clave: crypto.randomUUID(), metodo: "efectivo", montoPesos: 0, entregaPesos: 0 },
+  ]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,15 +47,38 @@ export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
   const cuadra = pagosCuadranConTotal(montosCop, totalCop);
 
   function agregarPago() {
-    setPagos((actual) => [...actual, { clave: crypto.randomUUID(), metodo: "efectivo", montoPesos: 0 }]);
+    setPagos((actual) => [
+      ...actual,
+      { clave: crypto.randomUUID(), metodo: "efectivo", montoPesos: 0, entregaPesos: 0 },
+    ]);
   }
 
   function quitarPago(clave: string) {
     setPagos((actual) => actual.filter((p) => p.clave !== clave));
   }
 
-  function actualizarPago(clave: string, cambios: Partial<Pick<FilaPago, "metodo" | "montoPesos">>) {
+  function actualizarPago(clave: string, cambios: Partial<Pick<FilaPago, "metodo" | "montoPesos" | "entregaPesos">>) {
     setPagos((actual) => actual.map((p) => (p.clave === clave ? { ...p, ...cambios } : p)));
+  }
+
+  /** Total menos lo que ya cubren las filas anteriores a `indice`, en
+   *  orden de índice -- así un pago mixto se resuelve fila por fila. */
+  function restanteAntesDe(indice: number): MontoCOP {
+    const cubiertoAntes = sumar(
+      ...pagos.slice(0, indice).map((p) => montoDesdePesos(Math.trunc(p.montoPesos) || 0)),
+    );
+    const restante = totalCop - cubiertoAntes;
+    return restante > 0n ? restante : 0n;
+  }
+
+  /** Al escribir "cuánto entrega el cliente" en una fila, autocompleta
+   *  "Monto" con lo que corresponde cubrir del restante en ese punto. La
+   *  cajera puede seguir editando "Monto" a mano después. */
+  function manejarEntrega(indice: number, entregaPesos: number) {
+    const entregaCop = montoDesdePesos(Math.trunc(entregaPesos) || 0);
+    const { cubreCop } = calcularVuelto(entregaCop, restanteAntesDe(indice));
+    const cubrePesos = Number(cubreCop / 100n);
+    setPagos((filas) => filas.map((p, i) => (i === indice ? { ...p, entregaPesos, montoPesos: cubrePesos } : p)));
   }
 
   async function confirmar() {
@@ -72,45 +98,69 @@ export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      {pagos.map((pago) => (
-        <div key={pago.clave} className="flex items-end gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="font-display text-sm font-medium text-text-primary">Método</label>
-            <select
-              value={pago.metodo}
-              onChange={(evento) => actualizarPago(pago.clave, { metodo: evento.target.value as PagoInput["metodo"] })}
-              className="h-12 rounded-clay-md bg-surface-sunken px-4 text-base text-text-primary shadow-clay-pressed"
-            >
-              {(Object.keys(ETIQUETA_METODO) as PagoInput["metodo"][]).map((metodo) => (
-                <option key={metodo} value={metodo}>
-                  {ETIQUETA_METODO[metodo]}
-                </option>
-              ))}
-            </select>
+      {pagos.map((pago, indice) => {
+        const { vueltoCop } = calcularVuelto(
+          montoDesdePesos(Math.trunc(pago.entregaPesos) || 0),
+          restanteAntesDe(indice),
+        );
+        return (
+          <div key={pago.clave} className="flex flex-col gap-2 rounded-clay-md bg-surface-sunken p-3">
+            <div className="flex items-end gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="font-display text-sm font-medium text-text-primary">Método</label>
+                <select
+                  value={pago.metodo}
+                  onChange={(evento) =>
+                    actualizarPago(pago.clave, { metodo: evento.target.value as PagoInput["metodo"] })
+                  }
+                  className="h-12 rounded-clay-md bg-surface-sunken px-4 text-base text-text-primary shadow-clay-pressed"
+                >
+                  {(Object.keys(ETIQUETA_METODO) as PagoInput["metodo"][]).map((metodo) => (
+                    <option key={metodo} value={metodo}>
+                      {ETIQUETA_METODO[metodo]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <ClayInput
+                label="Cuánto entrega el cliente"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={pago.entregaPesos || ""}
+                onChange={(evento) => manejarEntrega(indice, Math.trunc(Number(evento.target.value)) || 0)}
+              />
+              <ClayInput
+                label="Monto (pesos)"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={pago.montoPesos || ""}
+                onChange={(evento) =>
+                  actualizarPago(pago.clave, { montoPesos: Math.trunc(Number(evento.target.value)) || 0 })
+                }
+              />
+              {pagos.length > 1 ? (
+                <button
+                  type="button"
+                  aria-label="Quitar pago"
+                  onClick={() => quitarPago(pago.clave)}
+                  className="mb-1 text-brand-tomate-2 hover:text-brand-tomate"
+                >
+                  ✕
+                </button>
+              ) : null}
+            </div>
+            {vueltoCop > 0n ? (
+              <p className="font-mono text-lg font-semibold text-brand-verde-2">
+                Vuelto: {formatearCOP(vueltoCop)}
+              </p>
+            ) : null}
           </div>
-          <ClayInput
-            label="Monto (pesos)"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={1}
-            value={pago.montoPesos || ""}
-            onChange={(evento) =>
-              actualizarPago(pago.clave, { montoPesos: Math.trunc(Number(evento.target.value)) || 0 })
-            }
-          />
-          {pagos.length > 1 ? (
-            <button
-              type="button"
-              aria-label="Quitar pago"
-              onClick={() => quitarPago(pago.clave)}
-              className="mb-1 text-brand-tomate-2 hover:text-brand-tomate"
-            >
-              ✕
-            </button>
-          ) : null}
-        </div>
-      ))}
+        );
+      })}
       <ClayButton type="button" variant="secondary" size="sm" onClick={agregarPago}>
         + Agregar otro pago
       </ClayButton>
