@@ -1,9 +1,13 @@
 import { AdminNav } from "@/components/admin/AdminNav";
+import { LogoCriollitas } from "@/components/ui/LogoCriollitas";
 import { BotonCerrarSesion } from "@/components/auth/BotonCerrarSesion";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-brand-chocolate">
+      <header className="sticky top-0 z-20 flex justify-center border-b border-white/10 bg-brand-chocolate px-8 py-3 sm:justify-start">
+        <LogoCriollitas size="sm" />
+      </header>
       <header className="flex items-center justify-between border-b border-white/10 px-8 py-6">
         <span className="font-display text-lg text-brand-crema/70">Administración</span>
         <BotonCerrarSesion />
