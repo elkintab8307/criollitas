@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { BotonCerrarSesion } from "@/components/auth/BotonCerrarSesion";
 
 export default async function VendedoraLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createServerSupabase();
@@ -38,6 +39,7 @@ export default async function VendedoraLayout({ children }: { children: React.Re
           >
             Domicilios y para llevar
           </Link>
+          <BotonCerrarSesion />
         </div>
       </header>
       {children}

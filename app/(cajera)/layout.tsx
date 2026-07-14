@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BotonCerrarSesion } from "@/components/auth/BotonCerrarSesion";
 
 export default function CajeraLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,7 @@ export default function CajeraLayout({ children }: { children: React.ReactNode }
           >
             Domicilios y para llevar
           </Link>
+          <BotonCerrarSesion />
         </div>
       </header>
       {children}
