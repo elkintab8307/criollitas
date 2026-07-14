@@ -124,6 +124,8 @@ Efectivo, Nequi, Daviplata, Bancolombia QR, datáfono/tarjeta, **pago mixto** (c
 
 La Cajera abre turno declarando el efectivo inicial. Durante el turno, cada pago en efectivo suma al esperado. Puede registrar `movimientos_caja` (retiros, gastos menores) con concepto. Al cerrar, declara el efectivo contado; el sistema calcula la diferencia y la deja registrada. El turno cerrado no se puede editar.
 
+**Obligatorio al iniciar sesión** (bloque F): la Cajera no puede usar ninguna otra ruta suya — ni siquiera tomar pedidos (bloque E) — hasta declarar el efectivo inicial en `/turno/abrir`. Se implementa con una cookie `turno_abierto` (mismo patrón que `pin_validado`, §6.1), fijada por `abrirTurno()` y limpiada por `cerrarTurno()`, chequeada en el middleware. Únicas rutas exentas: `/turno/abrir` y `/mi-turno`.
+
 ### 2.5 KDS (Kitchen Display System)
 
 Vista sin scroll, pensada para pantalla vertical u horizontal en cocina. Cada tarjeta = un pedido. Muestra: número corto de pedido, origen (mesa X / domicilio / llevar), ítems con modificadores y notas, tiempo transcurrido con semáforo (verde <5min, amarillo 5-10, rojo >10, medido desde `enviado_cocina_en`). Toques por ítem: `pendiente` → `en preparación` → `listo`; un toque sobre `listo` lo destoca a `en preparación` (corrección de error). El estado agregado del pedido se recalcula solo cuando todos sus ítems coinciden — un pedido `entregado` al que se le agrega un ítem tardío se reabre a `enviado_cocina` para que vuelva a ser visible en el KDS. Se actualiza vía Supabase Realtime.
