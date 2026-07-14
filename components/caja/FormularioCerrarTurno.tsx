@@ -52,9 +52,14 @@ export function FormularioCerrarTurno({ esperadoCop }: FormularioCerrarTurnoProp
           {errorGeneral}
         </p>
       ) : null}
-      <ClayButton type="submit" variant="destructive" size="lg" disabled={isSubmitting}>
-        {isSubmitting ? "Cerrando…" : "Cerrar turno"}
-      </ClayButton>
+      <div className="flex justify-end gap-3">
+        <ClayButton type="button" variant="ghost" onClick={() => router.push("/mi-turno")}>
+          Volver
+        </ClayButton>
+        <ClayButton type="submit" variant="destructive" size="lg" disabled={isSubmitting}>
+          {isSubmitting ? "Cerrando…" : "Cerrar turno"}
+        </ClayButton>
+      </div>
     </form>
   );
 }
