@@ -14,14 +14,14 @@ import { limitesDeHoyBogota } from "@/lib/dates";
 
 const uuidValido = (valor: string): boolean => z.uuid().safeParse(valor).success;
 
-async function exigirVendedora(): Promise<Result<{ vendedoraId: string; sedeId: string }, DomainError>> {
+async function exigirVendedoraOCajera(): Promise<Result<{ vendedoraId: string; sedeId: string }, DomainError>> {
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return err({ codigo: "NO_AUTORIZADO", mensaje: "Inicia sesión de nuevo" });
-  if (user.app_metadata?.rol !== "vendedora") {
-    return err({ codigo: "NO_AUTORIZADO", mensaje: "Solo la vendedora puede editar este pedido" });
+  if (user.app_metadata?.rol !== "vendedora" && user.app_metadata?.rol !== "cajera") {
+    return err({ codigo: "NO_AUTORIZADO", mensaje: "Solo la vendedora o la cajera pueden editar este pedido" });
   }
   return ok({
     vendedoraId: user.id,
@@ -53,7 +53,7 @@ export async function confirmarItemsPedido(
   pedidoId: string,
   input: EnviarPedidoInput,
 ): Promise<Result<null, DomainError>> {
-  const ctx = await exigirVendedora();
+  const ctx = await exigirVendedoraOCajera();
   if (!ctx.ok) return ctx;
   if (!uuidValido(pedidoId)) {
     return err({ codigo: "VALIDACION", mensaje: "Identificador de pedido inválido" });
@@ -227,7 +227,7 @@ export async function crearPedidoConItems(
   origen: OrigenPedido,
   input: EnviarPedidoInput,
 ): Promise<Result<{ pedidoId: string }, DomainError>> {
-  const ctx = await exigirVendedora();
+  const ctx = await exigirVendedoraOCajera();
   if (!ctx.ok) return ctx;
   const supabase = await createServerSupabase();
 
@@ -285,7 +285,7 @@ export async function cancelarPedido(
   pedidoId: string,
   input: MotivoCancelacionInput,
 ): Promise<Result<null, DomainError>> {
-  const ctx = await exigirVendedora();
+  const ctx = await exigirVendedoraOCajera();
   if (!ctx.ok) return ctx;
   if (!uuidValido(pedidoId)) {
     return err({ codigo: "VALIDACION", mensaje: "Identificador de pedido inválido" });

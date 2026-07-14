@@ -14,15 +14,15 @@ interface ContextoVendedora {
   vendedoraId: string;
 }
 
-async function exigirVendedora(): Promise<Result<ContextoVendedora, DomainError>> {
+async function exigirVendedoraOCajera(): Promise<Result<ContextoVendedora, DomainError>> {
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return err({ codigo: "NO_AUTORIZADO", mensaje: "Inicia sesión de nuevo" });
   // app_metadata (no user_metadata): solo el service role lo escribe.
-  if (user.app_metadata?.rol !== "vendedora") {
-    return err({ codigo: "NO_AUTORIZADO", mensaje: "Solo la vendedora puede tomar pedidos" });
+  if (user.app_metadata?.rol !== "vendedora" && user.app_metadata?.rol !== "cajera") {
+    return err({ codigo: "NO_AUTORIZADO", mensaje: "Solo la vendedora o la cajera pueden tomar pedidos" });
   }
   return ok({
     sedeId: (user.app_metadata?.sede_id as string) ?? SEDE_DEFAULT_ID,
@@ -37,7 +37,7 @@ async function exigirVendedora(): Promise<Result<ContextoVendedora, DomainError>
 export async function crearPedidoDomicilio(
   input: ClienteDomicilioInput,
 ): Promise<Result<{ clienteId: string }, DomainError>> {
-  const ctx = await exigirVendedora();
+  const ctx = await exigirVendedoraOCajera();
   if (!ctx.ok) return ctx;
   const parsed = clienteDomicilioSchema.safeParse(input);
   if (!parsed.success) {
@@ -79,7 +79,7 @@ export async function crearPedidoDomicilio(
 export async function entrarPedidoDeMesa(
   mesaId: string,
 ): Promise<Result<{ pedidoId: string }, DomainError>> {
-  const ctx = await exigirVendedora();
+  const ctx = await exigirVendedoraOCajera();
   if (!ctx.ok) return ctx;
   if (!uuidValido(mesaId)) {
     return err({ codigo: "VALIDACION", mensaje: "Identificador de mesa inválido" });

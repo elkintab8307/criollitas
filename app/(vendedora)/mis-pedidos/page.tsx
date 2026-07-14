@@ -11,7 +11,7 @@ export default async function PedidosVendedoraPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || user.app_metadata?.rol !== "vendedora") {
+  if (!user || (user.app_metadata?.rol !== "vendedora" && user.app_metadata?.rol !== "cajera")) {
     redirect("/login");
   }
 
