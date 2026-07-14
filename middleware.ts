@@ -46,6 +46,19 @@ export async function middleware(request: NextRequest) {
   }
   if (esPublica) return response;
 
+  // Bloque F: la cajera debe declarar el dinero base (abrir turno) antes de
+  // usar cualquier otra ruta suya -- incluidas /inicio, /pedido, /mis-pedidos
+  // del Bloque E. turno_abierto es una cookie (mismo patrón que
+  // pin_validado), no una consulta a base de datos en cada request: si se
+  // pierde mientras sí hay un turno abierto real, /turno/abrir ya se
+  // auto-redirige a /mi-turno al detectarlo, y las Server Actions de caja
+  // validan un turno abierto real en cada llamada de todas formas.
+  const turnoAbierto = request.cookies.get("turno_abierto")?.value === "1";
+  const rutaExentaDeTurno = ruta === "/turno/abrir" || ruta === "/mi-turno" || ruta.startsWith("/mi-turno/");
+  if (rol === "cajera" && !turnoAbierto && !rutaExentaDeTurno) {
+    return NextResponse.redirect(new URL("/turno/abrir", request.url));
+  }
+
   const decision = resolverAccesoRuta(rol, ruta);
   if (decision.tipo === "redirigir") {
     return NextResponse.redirect(new URL(decision.destino, request.url));
