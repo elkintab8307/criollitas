@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import { ClayCard } from "@/components/ui/ClayCard";
 import { SelectorRangoFecha } from "@/components/reportes/SelectorRangoFecha";
 import { BotonExportar } from "@/components/reportes/BotonExportar";
+import { TablaReporte, type ColumnaReporte } from "@/components/reportes/TablaReporte";
 import { formatearCOP } from "@/lib/money";
 import { resolverRangoPreset, type RangoFechas } from "@/lib/reportes/rangosFecha";
 import { obtenerReporteMetodosPago, type FilaMetodoPago } from "./actions";
@@ -19,6 +20,17 @@ const ETIQUETA_METODO: Record<string, string> = {
   datafono: "Datáfono",
   otro: "Otro",
 };
+
+const columnasMetodosPago: ColumnaReporte<FilaMetodoPago>[] = [
+  { clave: "metodo", encabezado: "Método", render: (f) => ETIQUETA_METODO[f.metodo] ?? f.metodo },
+  {
+    clave: "totalCop",
+    encabezado: "Total",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.totalCop))}</span>,
+  },
+  { clave: "numPagos", encabezado: "Pagos" },
+  { clave: "porcentaje", encabezado: "%", render: (f) => `${f.porcentaje.toFixed(1)}%` },
+];
 
 export function VistaMetodosPago() {
   const [rango, setRango] = useState<RangoFechas>(() => resolverRangoPreset("mes"));
@@ -72,28 +84,7 @@ export function VistaMetodosPago() {
               </PieChart>
             </ResponsiveContainer>
           </ClayCard>
-          <ClayCard variant="flat" className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-black/10 text-text-secondary">
-                  <th className="py-2 pr-4">Método</th>
-                  <th className="py-2 pr-4">Total</th>
-                  <th className="py-2 pr-4">Pagos</th>
-                  <th className="py-2 pr-4">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((f) => (
-                  <tr key={f.metodo} className="border-b border-black/5 text-text-primary">
-                    <td className="py-2 pr-4">{ETIQUETA_METODO[f.metodo] ?? f.metodo}</td>
-                    <td className="py-2 pr-4 font-mono">{formatearCOP(BigInt(f.totalCop))}</td>
-                    <td className="py-2 pr-4">{f.numPagos}</td>
-                    <td className="py-2 pr-4">{f.porcentaje.toFixed(1)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ClayCard>
+          <TablaReporte columnas={columnasMetodosPago} filas={filas} claveFila={(f) => f.metodo} />
           <BotonExportar
             filas={filas as unknown as Record<string, unknown>[]}
             columnas={[
