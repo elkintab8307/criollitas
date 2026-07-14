@@ -32,6 +32,12 @@ export default function CajeraLayout({ children }: { children: React.ReactNode }
           >
             Mi turno
           </Link>
+          <Link
+            href="/turno/cerrar"
+            className="font-display text-sm text-brand-crema/70 transition-colors duration-150 hover:text-brand-crema focus-visible:outline-3 focus-visible:outline-brand-mostaza focus-visible:outline-offset-2"
+          >
+            Cerrar turno
+          </Link>
           <BotonCerrarSesion />
         </div>
       </header>

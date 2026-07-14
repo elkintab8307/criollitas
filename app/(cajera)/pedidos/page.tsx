@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ColaCobro } from "@/components/caja/ColaCobro";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
+import { calcularEsperado } from "@/lib/caja/arqueo";
+import { formatearCOP } from "@/lib/money";
 import type { PedidoColaVista } from "@/components/caja/tipos";
 
 export default async function PedidosCajaPage() {
@@ -13,6 +15,37 @@ export default async function PedidosCajaPage() {
     redirect("/login");
   }
   const sedeId = (user.app_metadata?.sede_id as string | undefined) ?? SEDE_DEFAULT_ID;
+
+  // Efectivo esperado en caja ahora mismo -- se recalcula en cada visita a
+  // esta página, y FormularioCobro redirige aquí justo después de cada
+  // cobro, así que la cajera lo ve actualizado tras cada pago. Mismo cálculo
+  // que /mi-turno (lib/caja/arqueo.ts, misma fórmula que el RPC cerrar_turno).
+  const { data: turno } = await supabase
+    .from("turnos_caja")
+    .select("id, efectivo_inicial_cop")
+    .eq("cajera_id", user.id)
+    .eq("estado", "abierto")
+    .maybeSingle();
+
+  let esperadoCop: bigint | null = null;
+  if (turno) {
+    const { data: pagos } = await supabase
+      .from("pagos")
+      .select("monto_cop, metodo")
+      .eq("turno_id", turno.id);
+    const { data: movimientos } = await supabase
+      .from("movimientos_caja")
+      .select("monto_cop, tipo")
+      .eq("turno_id", turno.id);
+
+    esperadoCop = calcularEsperado({
+      efectivoInicialCop: BigInt(turno.efectivo_inicial_cop),
+      pagosEfectivoCop: (pagos ?? []).filter((p) => p.metodo === "efectivo").map((p) => BigInt(p.monto_cop)),
+      retirosCop: (movimientos ?? []).filter((m) => m.tipo === "retiro").map((m) => BigInt(m.monto_cop)),
+      gastosCop: (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
+      ingresosExtraCop: (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop)),
+    });
+  }
 
   const { data: pedidosFilas } = await supabase
     .from("pedidos")
@@ -44,7 +77,15 @@ export default async function PedidosCajaPage() {
 
   return (
     <main className="p-8">
-      <h1 className="font-display text-3xl text-brand-mostaza">Pedidos por cobrar</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-3xl text-brand-mostaza">Pedidos por cobrar</h1>
+        {esperadoCop !== null ? (
+          <p className="font-display text-lg text-brand-crema">
+            Efectivo esperado en caja:{" "}
+            <span className="font-mono font-semibold text-brand-mostaza">{formatearCOP(esperadoCop)}</span>
+          </p>
+        ) : null}
+      </div>
       <div className="mt-6">
         <ColaCobro pedidosIniciales={pedidos} sedeId={sedeId} />
       </div>

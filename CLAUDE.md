@@ -122,7 +122,7 @@ Efectivo, Nequi, Daviplata, Bancolombia QR, datáfono/tarjeta, **pago mixto** (c
 
 ### 2.4 Arqueo y cierre de caja
 
-La Cajera abre turno declarando el efectivo inicial. Durante el turno, cada pago en efectivo suma al esperado. Puede registrar `movimientos_caja` (retiros, gastos menores) con concepto. Al cerrar, declara el efectivo contado; el sistema calcula la diferencia y la deja registrada. El turno cerrado no se puede editar.
+La Cajera abre turno declarando el efectivo inicial. Durante el turno, cada pago en efectivo suma al esperado. Puede registrar `movimientos_caja` (retiros, gastos menores) con concepto. Al cerrar, declara el efectivo contado; el sistema calcula la diferencia y la deja registrada. El turno cerrado no se puede editar. El efectivo esperado (misma fórmula que `cerrar_turno`, `lib/caja/arqueo.ts`) se muestra también en la cola de cobro (`/pedidos`), visible justo después de cada cobro.
 
 **Obligatorio al iniciar sesión** (bloque F): la Cajera no puede usar ninguna otra ruta suya — ni siquiera tomar pedidos (bloque E) — hasta declarar el efectivo inicial en `/turno/abrir`. Se implementa con una cookie `turno_abierto` (mismo patrón que `pin_validado`, §6.1), fijada por `abrirTurno()` y limpiada por `cerrarTurno()`, chequeada en el middleware. Únicas rutas exentas: `/turno/abrir` y `/mi-turno`.
 
