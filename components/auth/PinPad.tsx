@@ -124,13 +124,11 @@ export function PinPad({ usuarios }: PinPadProps) {
         setEnviando(false);
         return;
       }
-      // resultado.tipo === "correcto": solo se cachea identidad para
-      // cajera/admin (Step 2), así que rolUsuario solo puede ser uno de
-      // esos dos en este punto.
+      // resultado.tipo === "correcto"
       useSesionOfflineStore.getState().iniciar({
         usuarioId,
         nombre: usuarioSeleccionado.nombre,
-        rol: rolUsuario as "cajera" | "admin",
+        rol: resultado.identidad.rol,
         sedeId: resultado.identidad.sedeId,
       });
       router.push(rutaPorRol(rolUsuario));
