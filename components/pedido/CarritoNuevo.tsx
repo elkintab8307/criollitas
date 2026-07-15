@@ -6,6 +6,11 @@ import { formatearCOP, montoDesdePesos, multiplicar, sumar } from "@/lib/money";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { useCarritoStore } from "@/lib/pedido/carritoStore";
 import { crearPedidoConItems, type OrigenPedido } from "@/app/(vendedora)/pedido/actions";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import { useSesionOfflineStore } from "@/lib/offline/sesionOfflineStore";
+import { crearPedidoLocal } from "@/lib/offline/pedidosLocales";
+import { encolarOperacion } from "@/lib/offline/cola";
+import type { ItemPedidoLocal } from "@/lib/offline/db";
 
 interface CarritoNuevoProps {
   origen: OrigenPedido;
@@ -38,6 +43,58 @@ export function CarritoNuevo({ origen, usaCocina }: CarritoNuevoProps) {
     if (items.length === 0) return;
     setError(null);
     setEnviando(true);
+
+    if (useConectividadStore.getState().estado === "offline") {
+      const sesion = useSesionOfflineStore.getState().sesion;
+      if (!sesion) {
+        setError(
+          "No hay una identidad guardada en este equipo. Conéctate a internet una vez para poder trabajar sin conexión.",
+        );
+        setEnviando(false);
+        return;
+      }
+      const pedidoId = crypto.randomUUID();
+      const itemsLocales: ItemPedidoLocal[] = items.map((item) => ({
+        productoId: item.productoId,
+        nombre: item.nombre,
+        cantidad: item.cantidad,
+        precioUnitCop: Number(montoDesdePesos(item.precioUnitPesos)),
+        modificadores: item.modificadores.map((m) => ({
+          modificadorId: m.modificadorId,
+          nombre: m.nombre,
+          precioDeltaCop: Number(montoDesdePesos(m.precioDeltaPesos)),
+        })),
+        nota: item.nota || null,
+      }));
+      await crearPedidoLocal({
+        pedidoId,
+        origen,
+        items: itemsLocales,
+        estado: "abierto",
+        sedeId: sesion.sedeId,
+        vendedoraId: sesion.usuarioId,
+        creadoEn: new Date().toISOString(),
+      });
+      await encolarOperacion({
+        tipo: "crear_pedido_con_items",
+        payload: {
+          pedidoId,
+          origen,
+          items: items.map((item) => ({
+            productoId: item.productoId,
+            cantidad: item.cantidad,
+            modificadorIds: item.modificadores.map((m) => m.modificadorId),
+            nota: item.nota || undefined,
+          })),
+        },
+        creadaEn: new Date().toISOString(),
+      });
+      setEnviando(false);
+      vaciar();
+      router.push(`/pedido/${pedidoId}`);
+      return;
+    }
+
     const resultado = await crearPedidoConItems(origen, {
       items: items.map((item) => ({
         productoId: item.productoId,

@@ -226,6 +226,7 @@ async function limpiarPedidoVacio(
 export async function crearPedidoConItems(
   origen: OrigenPedido,
   input: EnviarPedidoInput,
+  idExplicito?: string,
 ): Promise<Result<{ pedidoId: string }, DomainError>> {
   const ctx = await exigirVendedoraOCajera();
   if (!ctx.ok) return ctx;
@@ -256,6 +257,7 @@ export async function crearPedidoConItems(
   const { data: pedido, error: errorPedido } = await supabase
     .from("pedidos")
     .insert({
+      ...(idExplicito ? { id: idExplicito } : {}),
       sede_id: ctx.valor.sedeId,
       numero_corto: numeroCorto,
       canal: origen.canal,
