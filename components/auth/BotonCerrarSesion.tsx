@@ -1,16 +1,32 @@
+"use client";
+
+import { useTransition } from "react";
 import { cerrarSesion } from "@/app/(auth)/pin/actions";
+import { useSesionOfflineStore } from "@/lib/offline/sesionOfflineStore";
+import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
 import { ClayButton } from "@/components/ui/ClayButton";
 
-/** Form con Server Action -- funciona sin JS del lado del cliente. Vive en
- *  el header de cada layout por rol para que cualquiera pueda ceder el
- *  dispositivo a otro miembro del staff sin cerrar sesión completa desde
- *  otro lado. */
+/** Limpia las identidades locales del equipo antes de cerrar sesión, para
+ *  que la siguiente persona que use este dispositivo compartido no
+ *  herede la identidad offline ni el turno local de quien cerró sesión. */
 export function BotonCerrarSesion() {
+  const [isPending, startTransition] = useTransition();
+
   return (
-    <form action={cerrarSesion}>
-      <ClayButton type="submit" variant="ghost" size="sm">
-        Cambiar de usuario
-      </ClayButton>
-    </form>
+    <ClayButton
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={isPending}
+      onClick={() => {
+        useSesionOfflineStore.getState().cerrar();
+        useTurnoOfflineStore.getState().cerrar();
+        startTransition(() => {
+          cerrarSesion();
+        });
+      }}
+    >
+      Cambiar de usuario
+    </ClayButton>
   );
 }
