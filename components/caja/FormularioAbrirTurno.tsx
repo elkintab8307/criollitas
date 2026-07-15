@@ -8,6 +8,11 @@ import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
 import { efectivoInicialSchema, type EfectivoInicialInput } from "@/lib/validations/turno";
 import { abrirTurno } from "@/app/(cajera)/turno/actions";
+import { montoDesdePesos } from "@/lib/money";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import { useSesionOfflineStore } from "@/lib/offline/sesionOfflineStore";
+import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
+import { encolarOperacion } from "@/lib/offline/cola";
 
 export function FormularioAbrirTurno() {
   const router = useRouter();
@@ -20,11 +25,41 @@ export function FormularioAbrirTurno() {
 
   const onSubmit = handleSubmit(async (datos) => {
     setErrorGeneral(null);
+
+    if (useConectividadStore.getState().estado === "offline") {
+      if (useTurnoOfflineStore.getState().turno) {
+        setErrorGeneral("Ya tienes un turno abierto.");
+        return;
+      }
+      const sesion = useSesionOfflineStore.getState().sesion;
+      if (!sesion) {
+        setErrorGeneral(
+          "No hay una identidad guardada en este equipo. Conéctate a internet una vez para poder trabajar sin conexión.",
+        );
+        return;
+      }
+      const turnoId = crypto.randomUUID();
+      await encolarOperacion({
+        tipo: "abrir_turno",
+        payload: {
+          turnoId,
+          sedeId: sesion.sedeId,
+          cajeraId: sesion.usuarioId,
+          efectivoInicialCop: Number(montoDesdePesos(datos.efectivoInicialPesos)),
+        },
+        creadaEn: new Date().toISOString(),
+      });
+      useTurnoOfflineStore.getState().abrir({ turnoId });
+      router.push("/mi-turno");
+      return;
+    }
+
     const resultado = await abrirTurno(datos);
     if (!resultado.ok) {
       setErrorGeneral(resultado.error.mensaje);
       return;
     }
+    useTurnoOfflineStore.getState().abrir({ turnoId: resultado.valor.turnoId });
     router.push("/mi-turno");
   });
 
