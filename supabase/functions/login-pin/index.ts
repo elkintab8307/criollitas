@@ -17,14 +17,32 @@ const admin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } },
 );
 
+// CORS: /pin (Bloque J2) llama a GET .../usuarios directo desde el
+// navegador para poder mostrar la lista de usuarios cacheada si falla
+// (offline) -- eso dispara un preflight OPTIONS por el header `apikey`
+// (no es "simple header" para CORS). Sin esto, el navegador bloquea la
+// respuesta aunque el servidor sí la entregue (bug real encontrado con
+// verificación en navegador: `net::ERR_FAILED` en la consola, la función
+// nunca tuvo que lidiar con esto porque hasta el Bloque J2 solo se
+// llamaba server-to-server, donde CORS no aplica).
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
   const url = new URL(req.url);
 
   // Lista de usuarios para la pantalla PIN (sin pin_hash)
