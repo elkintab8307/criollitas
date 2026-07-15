@@ -10,7 +10,8 @@ export async function encolarOperacion(
 }
 
 export async function listarPendientes(): Promise<OperacionCola[]> {
-  return baseDatosOffline.colaSync.where("sincronizada").equals(0).sortBy("creadaEn");
+  const todas = await baseDatosOffline.colaSync.orderBy("creadaEn").toArray();
+  return todas.filter((op) => !op.sincronizada);
 }
 
 export async function marcarSincronizada(id: number): Promise<void> {

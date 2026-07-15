@@ -3,7 +3,7 @@ import { useConectividadStore } from "@/lib/offline/conectividadStore";
 
 describe("useConectividadStore", () => {
   beforeEach(() => {
-    useConectividadStore.setState({ estado: "online", ultimoPing: null });
+    useConectividadStore.setState({ estado: "online", ultimoPing: null, navegadorOnline: true });
   });
 
   it("arranca en online sin ping todavía", () => {

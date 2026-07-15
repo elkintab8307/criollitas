@@ -51,7 +51,7 @@ class BaseDatosOffline extends Dexie {
   constructor() {
     super("criollitas-offline");
     this.version(1).stores({
-      colaSync: "++id, creadaEn, sincronizada",
+      colaSync: "++id, creadaEn",
       catalogoCache: "clave",
       identidadLocal: "usuarioId",
       informesCache: "clave",

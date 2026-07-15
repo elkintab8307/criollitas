@@ -17,18 +17,18 @@ self.addEventListener("fetch", (event) => {
       if (cacheada) {
         // cache-first: sirve la copia guardada, y de paso refresca en
         // segundo plano si hay red (no bloquea la respuesta al usuario).
+        // Solo sobrescribe la copia buena si la respuesta nueva es
+        // exitosa -- un 500/401 transitorio no debe reemplazar el shell.
         fetch(event.request)
-          .then((respuestaRed) => cache.put(event.request, respuestaRed))
+          .then((respuestaRed) => {
+            if (respuestaRed.ok) cache.put(event.request, respuestaRed);
+          })
           .catch(() => {});
         return cacheada;
       }
-      try {
-        const respuestaRed = await fetch(event.request);
-        cache.put(event.request, respuestaRed.clone());
-        return respuestaRed;
-      } catch (error) {
-        throw error;
-      }
+      const respuestaRed = await fetch(event.request);
+      if (respuestaRed.ok) cache.put(event.request, respuestaRed.clone());
+      return respuestaRed;
     }),
   );
 });
