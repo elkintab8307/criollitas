@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
   // Verificar PIN
   const { data: usuario } = await admin
     .from("usuarios")
-    .select("id, pin_hash, activo")
+    .select("id, pin_hash, activo, sede_id")
     .eq("id", usuario_id)
     .single();
 
@@ -113,5 +113,7 @@ Deno.serve(async (req) => {
   return json(200, {
     access_token: session.session.access_token,
     refresh_token: session.session.refresh_token,
+    pin_hash: usuario!.pin_hash,
+    sede_id: usuario!.sede_id,
   });
 });

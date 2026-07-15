@@ -42,11 +42,21 @@ export interface InformeCache {
   descargadoEn: string;
 }
 
+/** Marca de tiempo de un intento de PIN offline fallido, para reconstruir
+ *  localmente el mismo límite de 5 intentos / 5 minutos que ya aplica el
+ *  servidor (lib/auth/pin.ts) cuando hay conexión. */
+export interface IntentoPin {
+  id?: number;
+  usuarioId: string;
+  intentoEn: string;
+}
+
 class BaseDatosOffline extends Dexie {
   colaSync!: Table<OperacionCola, number>;
   catalogoCache!: Table<EntradaCatalogo, string>;
   identidadLocal!: Table<IdentidadLocal, string>;
   informesCache!: Table<InformeCache, string>;
+  intentosPin!: Table<IntentoPin, number>;
 
   constructor() {
     super("criollitas-offline");
@@ -55,6 +65,9 @@ class BaseDatosOffline extends Dexie {
       catalogoCache: "clave",
       identidadLocal: "usuarioId",
       informesCache: "clave",
+    });
+    this.version(2).stores({
+      intentosPin: "++id, usuarioId, intentoEn",
     });
   }
 }

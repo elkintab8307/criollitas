@@ -8,6 +8,10 @@ import { ClayCard } from "@/components/ui/ClayCard";
 import { cn } from "@/lib/cn";
 import { rutaPorRol, type Rol } from "@/lib/auth/roles";
 import { marcarPinValidado } from "@/app/(auth)/pin/actions";
+import { guardarIdentidad } from "@/lib/offline/identidad";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import { verificarPinLocal } from "@/lib/offline/pinLocal";
+import { useSesionOfflineStore } from "@/lib/offline/sesionOfflineStore";
 
 export interface UsuarioPin {
   id: string;
@@ -97,6 +101,40 @@ export function PinPad({ usuarios }: PinPadProps) {
     const rolUsuario = usuarioSeleccionado.rol;
     setEnviando(true);
     setError(null);
+
+    if (useConectividadStore.getState().estado === "offline") {
+      const resultado = await verificarPinLocal(usuarioId, pin);
+      if (usuarioEnCursoRef.current !== usuarioId) return;
+      if (resultado.tipo === "sin_credencial_local") {
+        setError("No hay una entrada guardada para este usuario en este equipo.");
+        setPin("");
+        setEnviando(false);
+        return;
+      }
+      if (resultado.tipo === "bloqueado") {
+        setError(`Demasiados intentos. Espera ${resultado.segundosRestantes} segundos.`);
+        setPin("");
+        iniciarBloqueo(resultado.segundosRestantes);
+        setEnviando(false);
+        return;
+      }
+      if (resultado.tipo === "incorrecto") {
+        setError("PIN incorrecto. Intenta de nuevo.");
+        setPin("");
+        setEnviando(false);
+        return;
+      }
+      // resultado.tipo === "correcto"
+      useSesionOfflineStore.getState().iniciar({
+        usuarioId,
+        nombre: usuarioSeleccionado.nombre,
+        rol: resultado.identidad.rol,
+        sedeId: resultado.identidad.sedeId,
+      });
+      router.push(rutaPorRol(rolUsuario));
+      return;
+    }
+
     try {
       const respuesta = await fetch("/api/auth/pin", {
         method: "POST",
@@ -126,6 +164,16 @@ export function PinPad({ usuarios }: PinPadProps) {
         try {
           await marcarPinValidado();
           if (usuarioEnCursoRef.current !== usuarioId) return;
+          if (rolUsuario === "cajera" || rolUsuario === "admin") {
+            await guardarIdentidad({
+              usuarioId,
+              nombre: usuarioSeleccionado.nombre,
+              rol: rolUsuario,
+              sedeId: datos.sede_id,
+              pinHash: datos.pin_hash,
+              refreshToken: datos.refresh_token,
+            });
+          }
           router.push(rutaPorRol(rolUsuario));
         } catch {
           // scope "local": no revocar sesiones del usuario en otros
