@@ -2,13 +2,17 @@ import Dexie, { type Table } from "dexie";
 
 /** Una operación (abrir turno, cobrar, etc.) pendiente de subir a Supabase.
  *  El contenido real de `tipo`/`payload` lo definen los bloques que
- *  encolan operaciones (J3/J4) -- aquí solo vive el esquema de la tabla. */
+ *  encolan operaciones (J3b/J3c/J3d) -- aquí solo vive el esquema de la
+ *  tabla. `estado` distingue "todavía no se intentó" de "falló de verdad,
+ *  necesita revisión" -- antes era un booleano que no podía representar
+ *  esa diferencia. */
 export interface OperacionCola {
   id?: number;
   tipo: string;
   payload: Record<string, unknown>;
   creadaEn: string;
-  sincronizada: boolean;
+  estado: "pendiente" | "sincronizada" | "fallida";
+  errorMensaje?: string;
 }
 
 /** Copia local de un recurso de solo lectura (productos, categorías,
