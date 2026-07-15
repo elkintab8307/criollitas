@@ -55,12 +55,42 @@ export interface IntentoPin {
   intentoEn: string;
 }
 
+/** Un ítem dentro de un pedido guardado localmente -- espejo simplificado
+ *  de `pedido_items` (sin `id` propio, se referencian solo por posición
+ *  en el arreglo; este proyecto no permite editar/quitar un ítem ya
+ *  confirmado ni online ni offline, solo agregar más). */
+export interface ItemPedidoLocal {
+  productoId: string;
+  nombre: string;
+  cantidad: number;
+  precioUnitCop: number;
+  modificadores: { modificadorId: string; nombre: string; precioDeltaCop: number }[];
+  nota: string | null;
+}
+
+/** Copia local completa de un pedido creado y/o modificado sin conexión
+ *  -- no solo la intención de crearlo (eso vive en `colaSync`), sino su
+ *  contenido real, para que las pantallas de detalle y cobro (Bloques
+ *  J3e/J3f) puedan mostrarlo y seguir operando sobre él sin depender del
+ *  servidor. `pedidoId` es el mismo identificador que se usará como `id`
+ *  real en Supabase al sincronizar (ver crearPedidoConItems, Bloque J3d). */
+export interface PedidoLocal {
+  pedidoId: string;
+  origen: { canal: "mesa"; mesaId: string } | { canal: "domicilio"; clienteId: string } | { canal: "llevar" };
+  items: ItemPedidoLocal[];
+  estado: "abierto" | "cobrado";
+  sedeId: string;
+  vendedoraId: string;
+  creadoEn: string;
+}
+
 class BaseDatosOffline extends Dexie {
   colaSync!: Table<OperacionCola, number>;
   catalogoCache!: Table<EntradaCatalogo, string>;
   identidadLocal!: Table<IdentidadLocal, string>;
   informesCache!: Table<InformeCache, string>;
   intentosPin!: Table<IntentoPin, number>;
+  pedidosLocales!: Table<PedidoLocal, string>;
 
   constructor() {
     super("criollitas-offline");
@@ -72,6 +102,9 @@ class BaseDatosOffline extends Dexie {
     });
     this.version(2).stores({
       intentosPin: "++id, usuarioId, intentoEn",
+    });
+    this.version(3).stores({
+      pedidosLocales: "pedidoId",
     });
   }
 }
