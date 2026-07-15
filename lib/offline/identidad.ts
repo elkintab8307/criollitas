@@ -9,3 +9,7 @@ export async function guardarIdentidad(
 export async function leerIdentidad(usuarioId: string): Promise<IdentidadLocal | undefined> {
   return baseDatosOffline.identidadLocal.get(usuarioId);
 }
+
+export async function listarIdentidades(): Promise<IdentidadLocal[]> {
+  return baseDatosOffline.identidadLocal.toArray();
+}
