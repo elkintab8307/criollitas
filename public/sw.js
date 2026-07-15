@@ -1,6 +1,6 @@
 const CACHE_NAME = "criollitas-shell-v1";
 
-self.addEventListener("install", (event) => {
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
