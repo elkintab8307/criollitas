@@ -5,6 +5,7 @@ import { RegistradorServiceWorker } from "@/components/offline/RegistradorServic
 import { GuardiaOffline } from "@/components/offline/GuardiaOffline";
 import { ManejadorReconexion } from "@/components/offline/ManejadorReconexion";
 import { RegistradorManejadoresTurno } from "@/components/offline/RegistradorManejadoresTurno";
+import { ActualizadorCatalogo } from "@/components/offline/ActualizadorCatalogo";
 import "./globals.css";
 
 const fredoka = Fredoka({ subsets: ["latin"], variable: "--font-fredoka" });
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GuardiaOffline />
         <ManejadorReconexion />
         <RegistradorManejadoresTurno />
+        <ActualizadorCatalogo />
         {children}
       </body>
     </html>
