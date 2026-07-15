@@ -8,6 +8,10 @@ import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
 import { movimientoSchema, type MovimientoInput } from "@/lib/validations/turno";
 import { registrarMovimiento } from "@/app/(cajera)/turno/actions";
+import { montoDesdePesos } from "@/lib/money";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
+import { encolarOperacion } from "@/lib/offline/cola";
 
 const ETIQUETA_TIPO: Record<MovimientoInput["tipo"], string> = {
   retiro: "Retiro",
@@ -27,6 +31,27 @@ export function FormularioMovimiento() {
 
   const onSubmit = handleSubmit(async (datos) => {
     setErrorGeneral(null);
+
+    if (useConectividadStore.getState().estado === "offline") {
+      const turno = useTurnoOfflineStore.getState().turno;
+      if (!turno) {
+        setErrorGeneral("No tienes un turno abierto.");
+        return;
+      }
+      await encolarOperacion({
+        tipo: "registrar_movimiento",
+        payload: {
+          turnoId: turno.turnoId,
+          tipo: datos.tipo,
+          concepto: datos.concepto,
+          montoCop: Number(montoDesdePesos(datos.montoPesos)),
+        },
+        creadaEn: new Date().toISOString(),
+      });
+      reset();
+      return;
+    }
+
     const resultado = await registrarMovimiento(datos);
     if (!resultado.ok) {
       setErrorGeneral(resultado.error.mensaje);

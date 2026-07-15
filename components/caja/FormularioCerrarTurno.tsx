@@ -6,9 +6,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
-import { formatearCOP, type MontoCOP } from "@/lib/money";
+import { formatearCOP, montoDesdePesos, type MontoCOP } from "@/lib/money";
 import { cierreTurnoSchema, type CierreTurnoInput } from "@/lib/validations/turno";
 import { cerrarTurno } from "@/app/(cajera)/turno/actions";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
+import { encolarOperacion } from "@/lib/offline/cola";
 
 interface FormularioCerrarTurnoProps {
   esperadoCop: MontoCOP;
@@ -25,11 +28,32 @@ export function FormularioCerrarTurno({ esperadoCop }: FormularioCerrarTurnoProp
 
   const onSubmit = handleSubmit(async (datos) => {
     setErrorGeneral(null);
+
+    if (useConectividadStore.getState().estado === "offline") {
+      const turno = useTurnoOfflineStore.getState().turno;
+      if (!turno) {
+        setErrorGeneral("No tienes un turno abierto en este equipo.");
+        return;
+      }
+      await encolarOperacion({
+        tipo: "cerrar_turno",
+        payload: {
+          turnoId: turno.turnoId,
+          efectivoDeclaradoCop: Number(montoDesdePesos(datos.efectivoDeclaradoPesos)),
+        },
+        creadaEn: new Date().toISOString(),
+      });
+      useTurnoOfflineStore.getState().cerrar();
+      router.push("/turno/abrir");
+      return;
+    }
+
     const resultado = await cerrarTurno(datos);
     if (!resultado.ok) {
       setErrorGeneral(resultado.error.mensaje);
       return;
     }
+    useTurnoOfflineStore.getState().cerrar();
     router.push("/turno/abrir");
   });
 

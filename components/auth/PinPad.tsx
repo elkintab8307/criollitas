@@ -173,6 +173,12 @@ export function PinPad({ usuarios }: PinPadProps) {
               pinHash: datos.pin_hash,
               refreshToken: datos.refresh_token,
             });
+            useSesionOfflineStore.getState().iniciar({
+              usuarioId,
+              nombre: usuarioSeleccionado.nombre,
+              rol: rolUsuario,
+              sedeId: datos.sede_id,
+            });
           }
           router.push(rutaPorRol(rolUsuario));
         } catch {
