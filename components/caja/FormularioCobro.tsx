@@ -7,7 +7,8 @@ import { ClayInput } from "@/components/ui/ClayInput";
 import { formatearCOP, montoDesdePesos, sumar, type MontoCOP } from "@/lib/money";
 import { calcularVuelto, pagosCuadranConTotal } from "@/lib/caja/cuadrePago";
 import type { PagoInput } from "@/lib/validations/cobro";
-import { cobrarPedido } from "@/app/(cajera)/cobrar/actions";
+import { cobrarPedido, reportarResultadoImpresion } from "@/app/(cajera)/cobrar/actions";
+import { enviarAlPrintBridgeDesdeNavegador } from "@/lib/escpos/clienteBridge";
 
 const ETIQUETA_METODO: Record<PagoInput["metodo"], string> = {
   efectivo: "Efectivo",
@@ -92,6 +93,15 @@ export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
     if (!resultado.ok) {
       setError(resultado.error.mensaje);
       return;
+    }
+    // El cobro ya quedó confirmado -- un fallo de impresión de aquí en
+    // adelante nunca debe bloquear la navegación (CLAUDE.md §10.2). El
+    // envío ocurre desde este navegador (el PC de caja sí está en la LAN
+    // del print-bridge; el servidor de la app, en Vercel, no).
+    const impresion = resultado.valor.impresion;
+    if (impresion) {
+      const resultadoImpresion = await enviarAlPrintBridgeDesdeNavegador(impresion.contenidoBase64);
+      await reportarResultadoImpresion(impresion.impresionId, resultadoImpresion.exito, resultadoImpresion.error);
     }
     router.push("/pedidos");
   }

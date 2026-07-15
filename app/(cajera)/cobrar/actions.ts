@@ -25,73 +25,49 @@ async function exigirCajera(): Promise<Result<{ cajeraId: string }, DomainError>
   return ok({ cajeraId: user.id });
 }
 
-async function enviarAlPrintBridge(
-  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
-  impresionId: string,
-  contenidoBase64: string,
-): Promise<void> {
-  try {
-    const respuesta = await fetch(`${process.env.PRINT_BRIDGE_URL}/print`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Bridge-Token": process.env.PRINT_BRIDGE_TOKEN ?? "",
-      },
-      body: JSON.stringify({ printer: "caja-01", escpos_base64: contenidoBase64 }),
-      signal: AbortSignal.timeout(5000),
-    });
-    await supabase
-      .from("impresiones")
-      .update({
-        enviado_en: new Date().toISOString(),
-        exito: respuesta.ok,
-        error: respuesta.ok ? null : `HTTP ${respuesta.status}`,
-      })
-      .eq("id", impresionId);
-  } catch (error) {
-    await supabase
-      .from("impresiones")
-      .update({
-        enviado_en: new Date().toISOString(),
-        exito: false,
-        error: error instanceof Error ? error.message : "Error de red",
-      })
-      .eq("id", impresionId);
-  }
+export interface DatosImpresionCliente {
+  impresionId: string;
+  contenidoBase64: string;
 }
 
-/** Arma el ticket y lo manda al print-bridge, después de que el cobro ya se
+/** Arma el ticket y lo deja registrado, después de que el cobro ya se
  *  confirmó (CLAUDE.md §10.2: el pago nunca depende de que la impresora
- *  esté disponible). Nunca lanza: cualquier error en este camino (incluida
- *  la propia lectura/inserción en BD, no solo la llamada HTTP) se traga
- *  aquí — un pedido ya cobrado no debe convertirse en un fallo visible del
- *  Server Action por un problema de impresión. cobrarPedido llama a esta
- *  función sin esperar nada de su resultado. */
-async function intentarImprimirTirilla(
+ *  esté disponible). El envío real al print-bridge ya NO ocurre aquí: el
+ *  servidor de la app corre en Vercel y no tiene ruta de red hacia la IP
+ *  LAN del print-bridge (hallazgo en vivo, bloque de cobro) -- el
+ *  navegador de la cajera sí está en esa red, así que hace el envío él
+ *  mismo con lo que esta función retorna (ver enviarAlPrintBridgeDesdeNavegador).
+ *  Nunca lanza: cualquier error en este camino (incluida la propia
+ *  lectura/inserción en BD) se traga aquí — un pedido ya cobrado no debe
+ *  convertirse en un fallo visible del Server Action por un problema de
+ *  impresión. cobrarPedido llama a esta función sin dejar que su fallo
+ *  tumbe el cobro. */
+async function prepararImpresionTirilla(
   supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   pedidoId: string,
-): Promise<void> {
+): Promise<DatosImpresionCliente | null> {
   try {
-    await intentarImprimirTirillaInterno(supabase, pedidoId);
+    return await prepararImpresionTirillaInterno(supabase, pedidoId);
   } catch (error) {
     // El cobro ya está confirmado; un fallo aquí (BD transitoria, etc.) no
     // debe propagar y aparentar que cobrarPedido falló. Se registra en el
     // log del servidor para no perder visibilidad de un bug real (ej. un
     // error de programación) que de otro modo fallaría en silencio total.
-    console.error(`intentarImprimirTirilla falló para pedido ${pedidoId}:`, error);
+    console.error(`prepararImpresionTirilla falló para pedido ${pedidoId}:`, error);
+    return null;
   }
 }
 
-async function intentarImprimirTirillaInterno(
+async function prepararImpresionTirillaInterno(
   supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   pedidoId: string,
-): Promise<void> {
+): Promise<DatosImpresionCliente | null> {
   const { data: pedidoFila } = await supabase
     .from("pedidos")
     .select("numero_corto, canal, mesa_id, subtotal_cop, total_cop, sede_id")
     .eq("id", pedidoId)
     .single();
-  if (!pedidoFila) return;
+  if (!pedidoFila) return null;
 
   const { data: sedeFila } = await supabase
     .from("sedes")
@@ -153,15 +129,33 @@ async function intentarImprimirTirillaInterno(
     .insert({ pedido_id: pedidoId, tipo: "tirilla_cobro", contenido_escpos: contenidoBase64 })
     .select("id")
     .single();
-  if (!impresionFila) return;
+  if (!impresionFila) return null;
 
-  await enviarAlPrintBridge(supabase, impresionFila.id, contenidoBase64);
+  return { impresionId: impresionFila.id, contenidoBase64 };
+}
+
+/** Registra el resultado de un envío de impresión hecho por el navegador
+ *  de la cajera (ver enviarAlPrintBridgeDesdeNavegador) -- espejo de lo que
+ *  antes escribía enviarAlPrintBridge del lado del servidor. */
+export async function reportarResultadoImpresion(
+  impresionId: string,
+  exito: boolean,
+  error: string | null,
+): Promise<void> {
+  const ctx = await exigirCajera();
+  if (!ctx.ok) return;
+  if (!uuidValido(impresionId)) return;
+  const supabase = await createServerSupabase();
+  await supabase
+    .from("impresiones")
+    .update({ enviado_en: new Date().toISOString(), exito, error })
+    .eq("id", impresionId);
 }
 
 export async function cobrarPedido(
   pedidoId: string,
   input: CobrarPedidoInput,
-): Promise<Result<null, DomainError>> {
+): Promise<Result<{ impresion: DatosImpresionCliente | null }, DomainError>> {
   const ctx = await exigirCajera();
   if (!ctx.ok) return ctx;
   if (!uuidValido(pedidoId)) {
@@ -201,14 +195,19 @@ export async function cobrarPedido(
     });
   }
 
-  await intentarImprimirTirilla(supabase, pedidoId);
+  const impresion = await prepararImpresionTirilla(supabase, pedidoId);
 
   revalidatePath("/pedidos");
   revalidatePath(`/cobrar/${pedidoId}`);
-  return ok(null);
+  return ok({ impresion });
 }
 
-export async function reintentarImpresion(impresionId: string): Promise<Result<null, DomainError>> {
+/** Devuelve el contenido ya codificado de una impresión existente para que
+ *  el navegador de la cajera reintente el envío (mismo motivo que
+ *  prepararImpresionTirilla: el servidor no alcanza el print-bridge). */
+export async function prepararReintentoImpresion(
+  impresionId: string,
+): Promise<Result<DatosImpresionCliente, DomainError>> {
   const ctx = await exigirCajera();
   if (!ctx.ok) return ctx;
   if (!uuidValido(impresionId)) {
@@ -223,14 +222,5 @@ export async function reintentarImpresion(impresionId: string): Promise<Result<n
   if (!impresionFila) {
     return err({ codigo: "NO_ENCONTRADO", mensaje: "No encontramos esa impresión" });
   }
-  await enviarAlPrintBridge(supabase, impresionFila.id, impresionFila.contenido_escpos);
-  const { data: actualizada } = await supabase
-    .from("impresiones")
-    .select("exito")
-    .eq("id", impresionId)
-    .single();
-  if (!actualizada?.exito) {
-    return err({ codigo: "BASE_DATOS", mensaje: "La impresora no respondió. Intenta de nuevo." });
-  }
-  return ok(null);
+  return ok({ impresionId: impresionFila.id, contenidoBase64: impresionFila.contenido_escpos });
 }

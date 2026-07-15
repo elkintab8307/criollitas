@@ -569,7 +569,7 @@ Internamente abre un socket TCP contra la IP de la impresora térmica (puerto 91
 
 ### 10.2 Cliente
 
-`lib/escpos/` construye el ticket con un builder tipado (encabezado, línea, alineación, corte, apertura de cajón). La Server Action `cobrarPedido` calcula el total, registra los pagos, cambia el estado a `cobrado`, y **como paso final** hace `POST` al print-bridge. Si el bridge falla, el pago queda registrado y se marca `impresiones.exito = false` para reintento manual desde la vista de Cajera.
+`lib/escpos/` construye el ticket con un builder tipado (encabezado, línea, alineación, corte, apertura de cajón). La app se despliega en Vercel (nube): el servidor **no tiene ruta de red hacia la IP LAN del print-bridge**, así que el `POST /print` nunca lo hace el servidor — lo hace el navegador de la Cajera, que sí está en la misma red que el print-bridge (`lib/escpos/clienteBridge.ts`, `enviarAlPrintBridgeDesdeNavegador`). El flujo: la Server Action `cobrarPedido` calcula el total, registra los pagos, cambia el estado a `cobrado`, arma el ticket ESC/POS y lo deja guardado en `impresiones` (`prepararImpresionTirilla`) — y devuelve ese contenido al cliente. `FormularioCobro.tsx` recibe la respuesta y, **después** de que el cobro ya quedó confirmado, hace el `POST` al print-bridge desde el propio navegador y reporta el resultado con la Server Action `reportarResultadoImpresion`. Si el bridge falla, el pago queda registrado igual y se marca `impresiones.exito = false` para reintento manual (`prepararReintentoImpresion`) desde la vista de Cajera. Por esto `PRINT_BRIDGE_URL`/`PRINT_BRIDGE_TOKEN` son variables `NEXT_PUBLIC_` (visibles en el navegador) — el print-bridge solo escucha en la LAN del local, así que ese token no protege nada que un atacante en internet pudiera alcanzar de todos modos.
 
 ### 10.3 Configuración
 
@@ -631,8 +631,8 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=            # solo servidor
 
-PRINT_BRIDGE_URL=http://192.168.x.x:7070
-PRINT_BRIDGE_TOKEN=
+NEXT_PUBLIC_PRINT_BRIDGE_URL=http://192.168.x.x:7070  # el navegador de la Cajera llama esto directo, ver §10.2
+NEXT_PUBLIC_PRINT_BRIDGE_TOKEN=
 
 NEXT_PUBLIC_APP_TZ=America/Bogota
 NEXT_PUBLIC_APP_LOCALE=es-CO
