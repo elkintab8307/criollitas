@@ -44,7 +44,14 @@ export function FormularioCerrarTurno({ esperadoCop }: FormularioCerrarTurnoProp
         creadaEn: new Date().toISOString(),
       });
       useTurnoOfflineStore.getState().cerrar();
-      router.push("/turno/abrir");
+      // Navegación completa (no router.push): /turno/abrir es la parada
+      // obligatoria tras iniciar sesión sin turno abierto (CLAUDE.md
+      // bloque F), así que ya quedó cacheada por el Service Worker como
+      // una petición GET normal. router.push haría un fetch "suave" con
+      // encabezados RSC que el Service Worker (Bloque J1) no reconoce
+      // como la misma respuesta cacheada, y fallaría offline (bug real
+      // encontrado con verificación en navegador).
+      window.location.href = "/turno/abrir";
       return;
     }
 
