@@ -91,6 +91,12 @@ export async function middleware(request: NextRequest) {
 
 // Las rutas /api/* quedan excluidas del middleware: deben autenticarse
 // a sí mismas con getUser() (relevante para el futuro /api/print).
+// sw.js también queda excluido (Bloque J1, Task 4): el navegador lo pide
+// sin cookies de sesión útiles para el registro del Service Worker, y si
+// el middleware lo redirige a /login o /pin, el navegador recibe HTML en
+// vez de JavaScript y el registro falla en silencio.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
