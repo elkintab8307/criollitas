@@ -23,6 +23,11 @@ export interface DatosTicket {
   pagos: PagoTicket[];
 }
 
+// Impresora real: COLPOS de 80mm, 48 columnas en Font A (CLAUDE.md §10.3) --
+// en una de 58mm serían 32.
+const ANCHO_TICKET = 48;
+const SEPARADOR = "-".repeat(ANCHO_TICKET);
+
 const ETIQUETA_METODO: Record<string, string> = {
   efectivo: "Efectivo",
   nequi: "Nequi",
@@ -43,23 +48,23 @@ export function construirLineasTicket(datos: DatosTicket): string[] {
   // corrompe en bytes reales. Tildes/¡/@ sí sobreviven (≤ U+00FF).
   lineas.push("Criollitas - Arepas Rellenas");
   lineas.push(datos.sedeNombre);
-  lineas.push("--------------------------------");
+  lineas.push(SEPARADOR);
   lineas.push(`Pedido #${datos.numeroCorto}`);
   lineas.push(formatearFecha(datos.fecha));
   lineas.push(datos.origen);
-  lineas.push("--------------------------------");
+  lineas.push(SEPARADOR);
   for (const item of datos.items) {
     lineas.push(`${item.cantidad}x ${item.nombre}`);
     lineas.push(`  ${formatearCOP(item.subtotalCop)}`);
   }
-  lineas.push("--------------------------------");
+  lineas.push(SEPARADOR);
   lineas.push(`Subtotal: ${formatearCOP(datos.subtotalCop)}`);
   lineas.push(`TOTAL: ${formatearCOP(datos.totalCop)}`);
-  lineas.push("--------------------------------");
+  lineas.push(SEPARADOR);
   for (const pago of datos.pagos) {
     lineas.push(`${ETIQUETA_METODO[pago.metodo] ?? pago.metodo}: ${formatearCOP(pago.montoCop)}`);
   }
-  lineas.push("--------------------------------");
+  lineas.push(SEPARADOR);
   lineas.push("¡Gracias por tu compra!");
   lineas.push("@criollitas_armenia");
   return lineas;
