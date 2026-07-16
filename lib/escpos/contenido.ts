@@ -49,7 +49,10 @@ export function construirLineasTicket(datos: DatosTicket): string[] {
   lineas.push("Criollitas - Arepas Rellenas");
   lineas.push(datos.sedeNombre);
   lineas.push(SEPARADOR);
-  lineas.push(`Pedido #${datos.numeroCorto}`);
+  // numeroCorto 0 = pedido cobrado offline (Bloque J3f): el número lo
+  // asigna el servidor al sincronizar, así que la tirilla no puede
+  // inventarse uno.
+  lineas.push(datos.numeroCorto > 0 ? `Pedido #${datos.numeroCorto}` : "Pedido (por sincronizar)");
   lineas.push(formatearFecha(datos.fecha));
   lineas.push(datos.origen);
   lineas.push(SEPARADOR);

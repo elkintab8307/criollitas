@@ -5,6 +5,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ClayCard } from "@/components/ui/ClayCard";
 import { formatearCOP } from "@/lib/money";
+import { listarPedidosLocales } from "@/lib/offline/pedidosLocales";
+import { leerDelCatalogo } from "@/lib/offline/catalogo";
+import { fusionarColaCobro } from "@/lib/offline/colaCobroLocal";
+import { refrescarPedidosLocales } from "@/lib/offline/catalogoRefresh";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import type { MesaCacheada } from "@/lib/offline/pedidoLocalVista";
 import type { PedidoColaVista } from "@/components/caja/tipos";
 import type { Database } from "@/lib/supabase/types";
 
@@ -73,6 +79,35 @@ export function ColaCobro({ pedidosIniciales, sedeId }: ColaCobroProps) {
     setPedidos(pedidosIniciales);
   }, [pedidosIniciales]);
 
+  // Fusiona las copias locales de pedidos (IndexedDB, Bloques J3d/J3f) con
+  // la lista del servidor: sin conexión, la lista server-rendered viene de
+  // la copia precargada (posiblemente vieja) y los pedidos creados offline
+  // solo existen localmente. La fusión es pura y está testeada
+  // (lib/offline/colaCobroLocal.ts); ante el mismo id gana el servidor.
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      const [locales, mesasCache] = await Promise.all([listarPedidosLocales(), leerDelCatalogo("mesas")]);
+      if (cancelado || locales.length === 0) return;
+      const mesas = (mesasCache?.datos as MesaCacheada[] | undefined) ?? [];
+      setPedidos((actual) => fusionarColaCobro(actual, locales, mesas));
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [pedidosIniciales]);
+
+  // Cada visita online a esta pantalla refresca el caché local de pedidos
+  // por cobrar (ver refrescarPedidosLocales) -- la cajera pasa por aquí
+  // tras cada cobro, así que la copia local se mantiene al día por si el
+  // internet se corta antes del próximo cobro.
+  useEffect(() => {
+    if (useConectividadStore.getState().estado === "offline") return;
+    refrescarPedidosLocales(createClient()).catch(() => {
+      // Sin conexión real pese a la señal: el próximo disparo lo reintenta.
+    });
+  }, [pedidosIniciales]);
+
   useEffect(() => {
     const supabase = createClient();
     const canal = supabase
@@ -122,7 +157,9 @@ export function ColaCobro({ pedidosIniciales, sedeId }: ColaCobroProps) {
         <Link key={pedido.id} href={`/cobrar/${pedido.id}`}>
           <ClayCard variant="elevated" className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between">
-              <span className="font-display text-2xl font-bold text-text-primary">#{pedido.numeroCorto}</span>
+              <span className="font-display text-2xl font-bold text-text-primary">
+                {pedido.numeroCorto > 0 ? `#${pedido.numeroCorto}` : "Sin número"}
+              </span>
               <span className="text-sm text-text-secondary">{etiquetaOrigen(pedido)}</span>
             </div>
             <span className="font-mono text-lg text-text-primary">{formatearCOP(BigInt(pedido.totalCop))}</span>

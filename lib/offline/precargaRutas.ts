@@ -7,6 +7,7 @@
  *  de un pedido creado offline no existe hasta que se crea y no se puede
  *  precargar individualmente. */
 export const RUTA_PLANTILLA_PEDIDO = "/pedido/plantilla-offline";
+export const RUTA_PLANTILLA_COBRO = "/cobrar/plantilla-offline";
 
 export const RUTAS_PRECARGA_OFFLINE = [
   "/pin",
@@ -17,6 +18,7 @@ export const RUTAS_PRECARGA_OFFLINE = [
   "/pedidos",
   "/pedido/nuevo",
   RUTA_PLANTILLA_PEDIDO,
+  RUTA_PLANTILLA_COBRO,
 ] as const;
 
 // Mismo nombre que usa public/sw.js para peticiones de navegación real --

@@ -83,6 +83,10 @@ self.addEventListener("fetch", (event) => {
             const plantilla = await cache.match("/pedido/plantilla-offline", { ignoreVary: true });
             if (plantilla) return plantilla;
           }
+          if (/^\/cobrar\/[^/]+$/.test(pathname)) {
+            const plantilla = await cache.match("/cobrar/plantilla-offline", { ignoreVary: true });
+            if (plantilla) return plantilla;
+          }
           throw error;
         }
       }),

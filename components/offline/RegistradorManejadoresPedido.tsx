@@ -3,7 +3,10 @@
 import { useEffect } from "react";
 import { registrarManejador } from "@/lib/offline/sync";
 import { confirmarItemsPedido, crearPedidoConItems, type OrigenPedido } from "@/app/(vendedora)/pedido/actions";
+import { sincronizarCobroOffline } from "@/app/(cajera)/cobrar/actions";
+import { eliminarPedidoLocal } from "@/lib/offline/pedidosLocales";
 import type { EnviarPedidoInput } from "@/lib/validations/pedido";
+import type { CobrarPedidoInput } from "@/lib/validations/cobro";
 
 /** Registra en el motor de sincronización (Bloque J3a) cómo reproducir
  *  contra Supabase cada operación de pedido encolada offline. A
@@ -34,6 +37,24 @@ export function RegistradorManejadoresPedido() {
         items: payload.items as EnviarPedidoInput["items"],
       });
       if (!resultado.ok) return { ok: false, mensaje: resultado.error.mensaje };
+      return { ok: true };
+    });
+
+    // Cobro hecho offline (Bloque J3f). Tras registrarlo en el servidor,
+    // la copia local del pedido ya no aporta nada: se elimina para que no
+    // reaparezca como fantasma en la cola de cobro offline.
+    registrarManejador("cobrar_pedido", async (payload) => {
+      const resultado = await sincronizarCobroOffline(
+        payload.pedidoId as string,
+        { pagos: payload.pagos as CobrarPedidoInput["pagos"] },
+        {
+          contenidoBase64: payload.contenidoEscposBase64 as string,
+          exito: payload.impresionExito as boolean,
+          error: (payload.impresionError as string | null) ?? null,
+        },
+      );
+      if (!resultado.ok) return { ok: false, mensaje: resultado.error.mensaje };
+      await eliminarPedidoLocal(payload.pedidoId as string);
       return { ok: true };
     });
   }, []);

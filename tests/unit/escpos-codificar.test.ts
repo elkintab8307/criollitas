@@ -30,15 +30,15 @@ describe("codificarEscPos", () => {
     expect(ultimos3[2]).toBe(0x00);
   });
 
-  it("un carácter fuera de Latin-1 (em dash, U+2014) se corrompería en la codificación binary — nunca debe llegar aquí desde construirLineasTicket", () => {
-    // Documenta el límite real de esta función: codificarEscPos usa Buffer
-    // "binary" (latin1, 1 byte por carácter) porque así hablan las
-    // impresoras térmicas. Tildes/¡/@ (≤ U+00FF) sobreviven; un em dash
-    // (U+2014) no — se trunca a un byte basura (0x14). La responsabilidad
-    // de no producir esos caracteres es de quien arma las líneas
-    // (construirLineasTicket ya evita el em dash por esto mismo).
+  it("un carácter fuera de Latin-1 (em dash, U+2014) se sanea a '?' — nunca corrompe ni lanza", () => {
+    // Documenta el límite real de esta función: el payload es latin1 (1
+    // byte por carácter, lo que entienden las impresoras térmicas).
+    // Tildes/¡/@ (≤ U+00FF) sobreviven; un em dash (U+2014) se reemplaza
+    // por "?" — btoa lanzaría InvalidCharacterError, y un problema de
+    // impresión jamás debe tumbar un cobro. construirLineasTicket evita
+    // producir estos caracteres de entrada.
     const resultado = codificarEscPos(["Criollitas — Arepas"]);
     const texto = Buffer.from(resultado, "base64").toString("binary");
-    expect(texto).not.toContain("Criollitas — Arepas");
+    expect(texto).toContain("Criollitas ? Arepas");
   });
 });

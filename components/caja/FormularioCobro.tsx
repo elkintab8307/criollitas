@@ -9,6 +9,23 @@ import { calcularVuelto, pagosCuadranConTotal } from "@/lib/caja/cuadrePago";
 import type { PagoInput } from "@/lib/validations/cobro";
 import { cobrarPedido, reportarResultadoImpresion } from "@/app/(cajera)/cobrar/actions";
 import { enviarAlPrintBridgeDesdeNavegador } from "@/lib/escpos/clienteBridge";
+import { construirLineasTicket } from "@/lib/escpos/contenido";
+import { codificarEscPos } from "@/lib/escpos/codificar";
+import { ahoraBogota } from "@/lib/dates";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
+import { marcarPedidoLocalCobrado } from "@/lib/offline/pedidosLocales";
+import { encolarOperacion } from "@/lib/offline/cola";
+
+/** Datos mínimos para armar la tirilla en el navegador cuando el cobro
+ *  ocurre sin conexión (Bloque J3f) -- online la arma el servidor. */
+export interface TicketOffline {
+  numeroCorto: number;
+  sedeNombre: string;
+  origen: string;
+  items: { cantidad: number; nombre: string; subtotalCop: number }[];
+  subtotalCop: number;
+}
 
 const ETIQUETA_METODO: Record<PagoInput["metodo"], string> = {
   efectivo: "Efectivo",
@@ -29,9 +46,10 @@ interface FilaPago {
 interface FormularioCobroProps {
   pedidoId: string;
   totalCop: MontoCOP;
+  ticketOffline: TicketOffline;
 }
 
-export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
+export function FormularioCobro({ pedidoId, totalCop, ticketOffline }: FormularioCobroProps) {
   const router = useRouter();
   const [pagos, setPagos] = useState<FilaPago[]>([
     { clave: crypto.randomUUID(), metodo: "efectivo", montoPesos: 0, entregaPesos: 0 },
@@ -86,6 +104,54 @@ export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
     if (!cuadra) return;
     setError(null);
     setEnviando(true);
+
+    if (useConectividadStore.getState().estado === "offline") {
+      if (!useTurnoOfflineStore.getState().turno) {
+        setError("Abre tu turno antes de cobrar.");
+        setEnviando(false);
+        return;
+      }
+      // La tirilla se arma y se imprime aquí mismo: el print-bridge está
+      // en la LAN del local (CLAUDE.md §10), no necesita internet. El
+      // registro en `impresiones` no puede preceder al envío como pide
+      // CLAUDE.md §13.9 (no hay base de datos alcanzable) -- queda en el
+      // payload encolado y el manejador de sincronización lo inserta con
+      // el resultado real al reconectar, única adaptación posible offline.
+      const contenidoBase64 = codificarEscPos(
+        construirLineasTicket({
+          sedeNombre: ticketOffline.sedeNombre,
+          numeroCorto: ticketOffline.numeroCorto,
+          fecha: ahoraBogota(),
+          origen: ticketOffline.origen,
+          items: ticketOffline.items.map((i) => ({
+            cantidad: i.cantidad,
+            nombre: i.nombre,
+            subtotalCop: BigInt(i.subtotalCop),
+          })),
+          subtotalCop: BigInt(ticketOffline.subtotalCop),
+          totalCop,
+          pagos: pagos.map((p) => ({ metodo: p.metodo, montoCop: montoDesdePesos(Math.trunc(p.montoPesos) || 0) })),
+        }),
+      );
+      const resultadoImpresion = await enviarAlPrintBridgeDesdeNavegador(contenidoBase64);
+      await marcarPedidoLocalCobrado(pedidoId);
+      await encolarOperacion({
+        tipo: "cobrar_pedido",
+        payload: {
+          pedidoId,
+          pagos: pagos.map((p) => ({ metodo: p.metodo, montoPesos: Math.trunc(p.montoPesos) || 0 })),
+          contenidoEscposBase64: contenidoBase64,
+          impresionExito: resultadoImpresion.exito,
+          impresionError: resultadoImpresion.error,
+        },
+        creadaEn: new Date().toISOString(),
+      });
+      // Navegación completa (no router.push): mismo motivo documentado en
+      // FormularioCerrarTurno.tsx; /pedidos está precargada.
+      window.location.href = "/pedidos";
+      return;
+    }
+
     const resultado = await cobrarPedido(pedidoId, {
       pagos: pagos.map((p) => ({ metodo: p.metodo, montoPesos: p.montoPesos })),
     });
@@ -94,6 +160,10 @@ export function FormularioCobro({ pedidoId, totalCop }: FormularioCobroProps) {
       setError(resultado.error.mensaje);
       return;
     }
+    // La copia local (si existe) se marca cobrada también en el camino
+    // online -- evita que reaparezca como fantasma en la cola de cobro
+    // offline antes del próximo refresco del caché de pedidos.
+    await marcarPedidoLocalCobrado(pedidoId);
     // El cobro ya quedó confirmado -- un fallo de impresión de aquí en
     // adelante nunca debe bloquear la navegación (CLAUDE.md §10.2). El
     // envío ocurre desde este navegador (el PC de caja sí está en la LAN

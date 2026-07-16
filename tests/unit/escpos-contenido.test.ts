@@ -55,4 +55,10 @@ describe("construirLineasTicket", () => {
     const lineas = construirLineasTicket({ ...datosBase, origen: "Domicilio" });
     expect(lineas).toContain("Domicilio");
   });
+
+  it("numeroCorto 0 (pedido cobrado offline, sin número asignado aún) -> línea alternativa sin #0", () => {
+    const lineas = construirLineasTicket({ ...datosBase, numeroCorto: 0 });
+    expect(lineas.some((l) => l.includes("#0"))).toBe(false);
+    expect(lineas).toContain("Pedido (por sincronizar)");
+  });
 });

@@ -202,6 +202,68 @@ export async function cobrarPedido(
   return ok({ impresion });
 }
 
+/** Reproduce contra Supabase un cobro hecho sin conexión (Bloque J3f): el
+ *  RPC atómico `cobrar_pedido` valida y registra igual que un cobro online
+ *  (el pedido ya existe en el servidor -- la cola FIFO garantiza que su
+ *  creación sincronizó antes), y la tirilla que el navegador ya imprimió
+ *  offline queda registrada en `impresiones` con su resultado real. El
+ *  orden imprimir-antes-de-registrar invierte CLAUDE.md §13.9 por
+ *  necesidad: sin conexión no hay base de datos que escriba primero. */
+export async function sincronizarCobroOffline(
+  pedidoId: string,
+  input: CobrarPedidoInput,
+  impresion: { contenidoBase64: string; exito: boolean; error: string | null },
+): Promise<Result<null, DomainError>> {
+  const ctx = await exigirCajera();
+  if (!ctx.ok) return ctx;
+  if (!uuidValido(pedidoId)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador de pedido inválido" });
+  }
+  const parsed = cobrarPedidoSchema.safeParse(input);
+  if (!parsed.success) {
+    return err({ codigo: "VALIDACION", mensaje: parsed.error.issues[0]?.message ?? "Datos inválidos" });
+  }
+  const supabase = await createServerSupabase();
+
+  const { data: turno } = await supabase
+    .from("turnos_caja")
+    .select("id")
+    .eq("cajera_id", ctx.valor.cajeraId)
+    .eq("estado", "abierto")
+    .maybeSingle();
+  if (!turno) {
+    return err({ codigo: "VALIDACION", mensaje: "No hay un turno abierto para registrar este cobro" });
+  }
+
+  const { error: errorCobro } = await supabase.rpc("cobrar_pedido", {
+    p_pedido_id: pedidoId,
+    p_turno_id: turno.id,
+    p_pagos: parsed.data.pagos.map((pago) => ({
+      metodo: pago.metodo,
+      monto_cop: Number(montoDesdePesos(pago.montoPesos)),
+      referencia: pago.referencia ?? null,
+    })),
+  });
+  if (errorCobro) {
+    return err({
+      codigo: "VALIDACION",
+      mensaje: "No pudimos registrar el cobro hecho sin conexión. Verifica el pedido e intenta de nuevo.",
+    });
+  }
+
+  await supabase.from("impresiones").insert({
+    pedido_id: pedidoId,
+    tipo: "tirilla_cobro",
+    contenido_escpos: impresion.contenidoBase64,
+    enviado_en: new Date().toISOString(),
+    exito: impresion.exito,
+    error: impresion.error,
+  });
+
+  revalidatePath("/pedidos");
+  return ok(null);
+}
+
 /** Devuelve el contenido ya codificado de una impresión existente para que
  *  el navegador de la cajera reintente el envío (mismo motivo que
  *  prepararImpresionTirilla: el servidor no alcanza el print-bridge). */
