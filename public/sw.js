@@ -88,41 +88,44 @@ self.addEventListener("fetch", (event) => {
   // -- Chromium no permite reutilizar el mismo objeto Request en más de
   // un fetch() para una petición de navegación (bug real, hallado con
   // verificación en navegador: net::ERR_FAILED incluso estando online).
+  // Navegaciones: PRIMERO RED, caché solo como respaldo sin conexión. Con
+  // el orden inverso (primero caché, refrescar después -- versión
+  // anterior), cada pantalla se servía desde la copia guardada incluso
+  // estando online: tras cerrar un turno, /pedidos y /mi-turno seguían
+  // mostrando el valor de caja del turno anterior hasta la siguiente
+  // visita (bug real reportado por el usuario). Los datos financieros
+  // renderizados en servidor no admiten "stale-while-revalidate".
   if (event.request.mode === "navigate") {
     const url = event.request.url;
     event.respondWith(
       caches.open(CACHE_SHELL).then(async (cache) => {
-        // ignoreSearch: el shell precargado de /pedido/nuevo (sin query)
-        // sirve igual para /pedido/nuevo?canal=llevar o ?mesaId=... -- la
-        // página lee sus parámetros de la URL real del navegador, no del
-        // payload embebido (ver app/(vendedora)/pedido/nuevo/page.tsx).
-        const cacheada = await cache.match(url, { ignoreVary: true, ignoreSearch: true });
-        if (cacheada) {
-          fetch(url, { credentials: "same-origin" })
-            .then((respuestaRed) => {
-              if (respuestaRed.ok && !respuestaRed.redirected) cache.put(url, respuestaRed);
-            })
-            .catch(() => {});
-          return cacheada;
-        }
         try {
-          const respuestaRed = await fetch(url, { credentials: "same-origin" });
-          // Una respuesta que vino de una redirección (ej. sin la cookie
-          // pin_validado todavía, cayó a /pin) no se guarda -- Chromium
-          // rechaza responder a una navegación con una respuesta así, y
-          // guardarla dejaría esa URL permanentemente rota offline (bug
-          // real, hallado con verificación en navegador: cache.match
-          // devolvía la respuesta de /pin bajo la clave /turno/abrir).
-          if (respuestaRed.ok && !respuestaRed.redirected) cache.put(url, respuestaRed.clone());
+          // redirect "manual": si el servidor redirige (ej. /pedidos sin
+          // turno abierto -> /turno/abrir), el SW devuelve la respuesta
+          // opaca de redirección y el NAVEGADOR la sigue él mismo --
+          // Chromium rechaza (net::ERR_FAILED) que un SW responda a una
+          // navegación con una respuesta ya redirigida-y-seguida, y
+          // tampoco debe cachearse (dejaría esa URL rota offline). La
+          // respuesta opaca tiene status 0, así que el guard de abajo la
+          // excluye de la caché sin código extra.
+          const respuestaRed = await fetch(url, { credentials: "same-origin", redirect: "manual" });
+          if (respuestaRed.ok) cache.put(url, respuestaRed.clone());
           return respuestaRed;
         } catch (error) {
-          // Sin red y sin copia exacta: las rutas dinámicas de pedido
-          // (/pedido/<id>) comparten todas el mismo shell de página -- un
-          // Client Component que lee el id de la URL real del navegador
-          // (Bloque J3e). Se sirve la plantilla precargada
-          // (lib/offline/precargaRutas.ts, RUTA_PLANTILLA_PEDIDO); el id
-          // de un pedido creado offline no existía cuando se precargó,
-          // así que nunca puede haber copia exacta para él.
+          // Sin red: copia exacta guardada. ignoreSearch: el shell
+          // precargado de /pedido/nuevo (sin query) sirve igual para
+          // /pedido/nuevo?canal=llevar o ?mesaId=... -- la página lee sus
+          // parámetros de la URL real del navegador, no del payload
+          // embebido (ver app/(vendedora)/pedido/nuevo/page.tsx).
+          const cacheada = await cache.match(url, { ignoreVary: true, ignoreSearch: true });
+          if (cacheada) return cacheada;
+          // Sin copia exacta: las rutas dinámicas de pedido/cobro
+          // (/pedido/<id>, /cobrar/<id>) comparten todas el mismo shell de
+          // página -- un Client Component que lee el id de la URL real del
+          // navegador (Bloques J3e/J3f). Se sirve la plantilla precargada
+          // (lib/offline/precargaRutas.ts); el id de un pedido creado
+          // offline no existía cuando se precargó, así que nunca puede
+          // haber copia exacta para él.
           const pathname = new URL(url).pathname;
           if (/^\/pedido\/[^/]+$/.test(pathname) && pathname !== "/pedido/nuevo") {
             const plantilla = await cache.match("/pedido/plantilla-offline", { ignoreVary: true });
@@ -139,24 +142,37 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Assets estáticos de Next (/_next/static/*): el nombre de archivo lleva
+  // un hash de contenido, así que la copia guardada nunca puede quedar
+  // desactualizada -- primero caché es correcto y más rápido aquí.
+  const esAssetInmutable = new URL(event.request.url).pathname.startsWith("/_next/static/");
+  if (esAssetInmutable) {
+    event.respondWith(
+      caches.open(CACHE_RSC).then(async (cache) => {
+        const cacheada = await cache.match(event.request);
+        if (cacheada) return cacheada;
+        const respuestaRed = await fetch(event.request);
+        if (respuestaRed.ok) cache.put(event.request, respuestaRed.clone());
+        return respuestaRed;
+      }),
+    );
+    return;
+  }
+
+  // Resto de GETs (payloads RSC de router.push/prefetch, imágenes, etc.):
+  // primero red -- son datos que cambian con cada mutación (mismo motivo
+  // que las navegaciones); la caché queda solo como respaldo offline.
   event.respondWith(
     caches.open(CACHE_RSC).then(async (cache) => {
-      const cacheada = await cache.match(event.request);
-      if (cacheada) {
-        // cache-first: sirve la copia guardada, y de paso refresca en
-        // segundo plano si hay red (no bloquea la respuesta al usuario).
-        // Solo sobrescribe la copia buena si la respuesta nueva es
-        // exitosa -- un 500/401 transitorio no debe reemplazar el shell.
-        fetch(event.request)
-          .then((respuestaRed) => {
-            if (respuestaRed.ok) cache.put(event.request, respuestaRed);
-          })
-          .catch(() => {});
-        return cacheada;
+      try {
+        const respuestaRed = await fetch(event.request);
+        if (respuestaRed.ok) cache.put(event.request, respuestaRed.clone());
+        return respuestaRed;
+      } catch (error) {
+        const cacheada = await cache.match(event.request);
+        if (cacheada) return cacheada;
+        throw error;
       }
-      const respuestaRed = await fetch(event.request);
-      if (respuestaRed.ok) cache.put(event.request, respuestaRed.clone());
-      return respuestaRed;
     }),
   );
 });
