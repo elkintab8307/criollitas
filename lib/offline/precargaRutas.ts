@@ -16,6 +16,10 @@ export const RUTAS_PRECARGA_OFFLINE = [
   "/turno/movimientos",
   "/mi-turno",
   "/pedidos",
+  // /inicio: selector de origen (mesa/domicilio/llevar) -- la copia
+  // muestra el estado de mesas del último refresco, aceptable offline.
+  "/inicio",
+  "/pedidos-en-curso",
   "/pedido/nuevo",
   RUTA_PLANTILLA_PEDIDO,
   RUTA_PLANTILLA_COBRO,
