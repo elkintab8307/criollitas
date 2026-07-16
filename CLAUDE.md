@@ -565,7 +565,7 @@ POST http://<ip-local>:7070/print
   Auth: header X-Bridge-Token (compartido con la app Next.js)
 ```
 
-Internamente abre un socket TCP contra la IP de la impresora térmica (puerto 9100 típico) y escribe los bytes. Reintentos con backoff. Cola en disco (SQLite) para no perder tickets si la impresora está offline.
+Internamente, al recibir `POST /print`, abre un socket TCP contra `PRINTER_IP:PRINTER_PORT` (puerto 9100 típico, protocolo raw/JetDirect) y escribe los bytes ESC/POS decodificados -- la IP de la impresora vive en `print-bridge/.env`, no en el body de la petición. Sin cola en disco ni reintentos propios: la app ya absorbe un fallo de impresión a su nivel (`impresiones.exito = false`, reintento manual). Se distribuye como `print-bridge.exe` empaquetado con `pkg` -- el usuario no necesita instalar Node.js. Ver `docs/superpowers/specs/2026-07-15-print-bridge-red-design.md` para el diseño completo y `print-bridge/README.md` para la puesta en marcha.
 
 ### 10.2 Cliente
 
@@ -573,7 +573,7 @@ Internamente abre un socket TCP contra la IP de la impresora térmica (puerto 91
 
 ### 10.3 Configuración
 
-Admin registra la impresora en `sedes.impresoras` con nombre, IP, ancho (58mm/80mm), copias. Prueba de impresión desde `/admin/sedes/[id]/impresoras`.
+Hoy la configuración de la impresora vive en `print-bridge/.env` (`PRINTER_IP`, `PRINTER_PORT`, un solo valor -- una Cajera, una impresora). La tabla `sedes.impresoras` mencionada en versiones previas de este documento como UI de Admin para registrar impresoras por IP/ancho/copias **no existe todavía** -- se construye si el negocio crece a más sedes o impresoras (fuera de alcance del diseño actual, ver `docs/superpowers/specs/2026-07-15-print-bridge-red-design.md`).
 
 ---
 
