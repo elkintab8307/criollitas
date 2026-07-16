@@ -177,7 +177,11 @@ export function FormularioCobro({ pedidoId, totalCop, ticketOffline }: Formulari
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // Superficie crema propia: este formulario se renderiza sobre el fondo
+    // chocolate de la página, y sus textos (text-text-primary/secondary,
+    // tonos chocolate) eran invisibles ahí -- el "Total del pedido" no se
+    // veía por ningún lado (bug real reportado por el usuario).
+    <div className="flex flex-col gap-4 rounded-clay-lg bg-brand-crema p-5 shadow-clay-md">
       {pagos.map((pago, indice) => {
         const { vueltoCop } = calcularVuelto(
           montoDesdePesos(Math.trunc(pago.entregaPesos) || 0),
@@ -185,7 +189,7 @@ export function FormularioCobro({ pedidoId, totalCop, ticketOffline }: Formulari
         );
         return (
           <div key={pago.clave} className="flex flex-col gap-2 rounded-clay-md bg-surface-sunken p-3">
-            <div className="flex items-end gap-3">
+            <div className="flex flex-wrap items-end gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="font-display text-sm font-medium text-text-primary">Método</label>
                 <select

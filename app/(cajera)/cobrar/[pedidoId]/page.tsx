@@ -192,6 +192,15 @@ export default function CobrarPedidoPage() {
               <p className="text-brand-chocolate/70">{formatearCOP(BigInt(item.subtotalCop))}</p>
             </div>
           ))}
+          {/* Total grande justo debajo de los ítems: la cajera debe ver
+              cuánto cobrar sin buscarlo dentro del formulario de pago
+              (legible a 1m, CLAUDE.md §8.4). */}
+          <div className="mt-2 flex items-center justify-between rounded-clay-md bg-brand-mostaza px-4 py-3 shadow-clay-sm">
+            <span className="font-display text-lg font-semibold text-brand-chocolate">Total a cobrar</span>
+            <span className="font-mono text-2xl font-bold text-brand-chocolate">
+              {formatearCOP(BigInt(datos.totalCop))}
+            </span>
+          </div>
         </div>
         {datos.yaEstaCobrado ? (
           <p className="rounded-clay-md bg-brand-chocolate-2 p-6 text-center text-xl text-brand-crema/70">
