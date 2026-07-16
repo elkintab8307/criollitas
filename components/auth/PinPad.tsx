@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { rutaPorRol, type Rol } from "@/lib/auth/roles";
 import { marcarPinValidado } from "@/app/(auth)/pin/actions";
 import { guardarIdentidad } from "@/lib/offline/identidad";
+import { precargarRutasOffline } from "@/lib/offline/precargaRutas";
 import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { verificarPinLocal } from "@/lib/offline/pinLocal";
 import { useSesionOfflineStore } from "@/lib/offline/sesionOfflineStore";
@@ -179,6 +180,12 @@ export function PinPad({ usuarios }: PinPadProps) {
               rol: rolUsuario,
               sedeId: datos.sede_id,
             });
+            // La cookie pin_validado ya quedó fijada por marcarPinValidado()
+            // -- este es uno de los dos únicos momentos en que se puede
+            // precargar con certeza de que las rutas protegidas no
+            // redirigen (ver lib/offline/precargaRutas.ts). No se espera
+            // (fire-and-forget): no debe demorar la navegación normal.
+            precargarRutasOffline();
           }
           router.push(rutaPorRol(rolUsuario));
         } catch {

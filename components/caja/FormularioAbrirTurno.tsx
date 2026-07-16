@@ -13,6 +13,7 @@ import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { useSesionOfflineStore } from "@/lib/offline/sesionOfflineStore";
 import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
 import { encolarOperacion } from "@/lib/offline/cola";
+import { precargarRutasOffline } from "@/lib/offline/precargaRutas";
 
 export function FormularioAbrirTurno() {
   const router = useRouter();
@@ -50,7 +51,12 @@ export function FormularioAbrirTurno() {
         creadaEn: new Date().toISOString(),
       });
       useTurnoOfflineStore.getState().abrir({ turnoId });
-      router.push("/mi-turno");
+      // Navegación completa (no router.push): mismo motivo que
+      // FormularioCerrarTurno.tsx -- router.push hace un fetch "suave" con
+      // encabezados RSC que el Service Worker no reconoce como la misma
+      // respuesta cacheada para /mi-turno. /mi-turno está precargada
+      // explícitamente (lib/offline/precargaRutas.ts) como página completa.
+      window.location.href = "/mi-turno";
       return;
     }
 
@@ -60,6 +66,13 @@ export function FormularioAbrirTurno() {
       return;
     }
     useTurnoOfflineStore.getState().abrir({ turnoId: resultado.valor.turnoId });
+    // Tercer momento seguro para precargar (lib/offline/precargaRutas.ts):
+    // recién ahora existe un turno abierto, así que /turno/movimientos,
+    // /turno/cerrar, /pedidos y /pedido/nuevo (gateadas por CLAUDE.md
+    // bloque F a tener turno abierto) ya no redirigen. Antes de este punto
+    // (ej. justo tras validar el PIN) siempre redirigían a /turno/abrir y
+    // quedaban excluidas por el guard de "no guardar una redirección".
+    precargarRutasOffline();
     router.push("/mi-turno");
   });
 

@@ -43,7 +43,17 @@ export async function sincronizarPendientes(): Promise<ResultadoSincronizacion> 
   let fallidas = 0;
   for (const op of pendientes) {
     const manejador = manejadores.get(op.tipo);
-    const resultado = manejador ? await manejador(op.payload) : undefined;
+    let resultado: ResultadoManejador | undefined;
+    if (manejador) {
+      try {
+        resultado = await manejador(op.payload);
+      } catch (error) {
+        // Un manejador que lanza (en vez de retornar {ok:false}) no debe
+        // abortar el resto de la cola -- cada operación pendiente merece
+        // su propio intento (hallazgo del review final del Bloque J3a).
+        resultado = { ok: false, mensaje: error instanceof Error ? error.message : "Error inesperado al sincronizar" };
+      }
+    }
     const accion = decidirAccionSync(!!manejador, resultado);
     if (accion.tipo === "sincronizada") {
       await marcarSincronizada(op.id!);

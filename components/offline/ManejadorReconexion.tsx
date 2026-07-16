@@ -7,6 +7,7 @@ import { leerIdentidad } from "@/lib/offline/identidad";
 import { createClient } from "@/lib/supabase/client";
 import { marcarPinValidado } from "@/app/(auth)/pin/actions";
 import { sincronizarPendientes } from "@/lib/offline/sync";
+import { precargarRutasOffline } from "@/lib/offline/precargaRutas";
 
 /** Cuando vuelve la conexión tras haber operado offline, intenta
  *  restaurar una sesión real de Supabase con el refresh_token cacheado
@@ -37,6 +38,13 @@ export function ManejadorReconexion() {
       if (error) return;
       await marcarPinValidado();
       await sincronizarPendientes();
+      // Después de sincronizar, no antes: si un "abrir turno" quedó
+      // encolado offline, recién aquí el servidor ya lo procesó y la
+      // cookie de turno abierto (CLAUDE.md bloque F) es válida -- antes
+      // de este punto, /turno/movimientos, /turno/cerrar, /pedidos y
+      // /pedido/nuevo redirigirían y quedarían excluidas por el guard de
+      // "no guardar una redirección" (lib/offline/precargaRutas.ts).
+      precargarRutasOffline();
       useSesionOfflineStore.getState().cerrar();
     })();
   }, [estado]);
