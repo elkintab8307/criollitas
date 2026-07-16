@@ -13,17 +13,18 @@ describe("clienteDomicilioSchema", () => {
       }).success,
     ).toBe(true);
   });
-  it("rechaza nombre, teléfono o dirección demasiado cortos", () => {
+  it("teléfono y dirección son opcionales: acepta solo el nombre", () => {
+    expect(clienteDomicilioSchema.safeParse({ nombre: "María Pérez" }).success).toBe(true);
     expect(
-      clienteDomicilioSchema.safeParse({ nombre: "M", telefono: "3211234567", direccion: "Cra 14 # 8-28" })
-        .success,
-    ).toBe(false);
-    expect(
-      clienteDomicilioSchema.safeParse({ nombre: "María", telefono: "123", direccion: "Cra 14 # 8-28" }).success,
-    ).toBe(false);
-    expect(
-      clienteDomicilioSchema.safeParse({ nombre: "María", telefono: "3211234567", direccion: "Cra" }).success,
-    ).toBe(false);
+      clienteDomicilioSchema.safeParse({ nombre: "María Pérez", telefono: "", direccion: "" }).success,
+    ).toBe(true);
+  });
+  it("rechaza nombre demasiado corto", () => {
+    expect(clienteDomicilioSchema.safeParse({ nombre: "M" }).success).toBe(false);
+  });
+  it("si el teléfono o la dirección SÍ se escriben, deben ser válidos", () => {
+    expect(clienteDomicilioSchema.safeParse({ nombre: "María", telefono: "123" }).success).toBe(false);
+    expect(clienteDomicilioSchema.safeParse({ nombre: "María", direccion: "Cra" }).success).toBe(false);
   });
 });
 

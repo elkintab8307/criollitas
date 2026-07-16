@@ -57,7 +57,10 @@ export function ClayModal({ abierto, titulo, onCerrar, children, className }: Cl
           dialogRef.current?.close();
         }
       }}
-      className={cn("w-full max-w-lg bg-transparent p-0", className)}
+      // m-auto: el <dialog> nativo se centra con margin:auto, pero el reset
+      // de Tailwind (preflight) pone margin:0 en todo -- sin esto el modal
+      // queda pegado a la esquina superior izquierda.
+      className={cn("m-auto w-full max-w-lg bg-transparent p-0", className)}
     >
       <div className="w-full rounded-clay-lg bg-brand-crema p-6 text-text-primary shadow-clay-lg">
         <h2 id={tituloId} className="font-display text-xl font-semibold text-text-primary">

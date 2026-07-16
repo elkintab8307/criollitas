@@ -199,7 +199,10 @@ export async function confirmarItemsPedido(
 export type OrigenPedido =
   | { canal: "mesa"; mesaId: string }
   | { canal: "domicilio"; clienteId: string }
-  | { canal: "llevar" };
+  // clienteId opcional: un pedido para llevar puede llevar el nombre del
+  // cliente (mismo formulario que domicilio, decisión del usuario) o no
+  // llevar nada (camino offline, donde no se puede crear el cliente).
+  | { canal: "llevar"; clienteId?: string };
 
 /** Borra un pedido `abierto` y cualquier ítem/adicional que haya alcanzado
  *  a insertarse, en ese orden (pedido_item_mods -> pedido_items -> pedidos)
@@ -251,6 +254,10 @@ export async function crearPedidoConItems(
     if (!uuidValido(origen.clienteId)) {
       return err({ codigo: "VALIDACION", mensaje: "Identificador de cliente inválido" });
     }
+  } else if (origen.canal === "llevar" && origen.clienteId !== undefined) {
+    if (!uuidValido(origen.clienteId)) {
+      return err({ codigo: "VALIDACION", mensaje: "Identificador de cliente inválido" });
+    }
   }
 
   const numeroCorto = await calcularSiguienteNumero(supabase, ctx.valor.sedeId);
@@ -262,7 +269,7 @@ export async function crearPedidoConItems(
       numero_corto: numeroCorto,
       canal: origen.canal,
       mesa_id: origen.canal === "mesa" ? origen.mesaId : null,
-      cliente_id: origen.canal === "domicilio" ? origen.clienteId : null,
+      cliente_id: origen.canal !== "mesa" ? (origen.clienteId ?? null) : null,
       vendedora_id: ctx.valor.vendedoraId,
     })
     .select("id")

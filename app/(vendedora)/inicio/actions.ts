@@ -48,20 +48,22 @@ export async function crearPedidoDomicilio(
   }
   const supabase = await createServerSupabase();
 
-  const { data: cliente, error: errorCliente } = await supabase
-    .from("clientes_domicilio")
-    .upsert(
-      {
-        sede_id: ctx.valor.sedeId,
-        nombre: parsed.data.nombre,
-        telefono: parsed.data.telefono,
-        direccion: parsed.data.direccion,
-        referencia: parsed.data.referencia ?? null,
-      },
-      { onConflict: "sede_id,telefono" },
-    )
-    .select("id")
-    .single();
+  const fila = {
+    sede_id: ctx.valor.sedeId,
+    nombre: parsed.data.nombre,
+    telefono: parsed.data.telefono || null,
+    direccion: parsed.data.direccion || null,
+    referencia: parsed.data.referencia ?? null,
+  };
+
+  // El upsert por (sede_id, telefono) solo tiene sentido con teléfono
+  // diligenciado -- dos filas con teléfono NULL nunca "chocan" en Postgres,
+  // así que sin teléfono se inserta directo (teléfono/dirección son
+  // opcionales desde la migración 20260725100000).
+  const consulta = fila.telefono
+    ? supabase.from("clientes_domicilio").upsert(fila, { onConflict: "sede_id,telefono" })
+    : supabase.from("clientes_domicilio").insert(fila);
+  const { data: cliente, error: errorCliente } = await consulta.select("id").single();
   if (errorCliente || !cliente) {
     return err({
       codigo: "BASE_DATOS",

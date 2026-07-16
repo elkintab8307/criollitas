@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -167,33 +167,33 @@ export type Database = {
       clientes_domicilio: {
         Row: {
           creado_en: string
-          direccion: string
+          direccion: string | null
           id: string
           nombre: string
           notas: string | null
           referencia: string | null
           sede_id: string
-          telefono: string
+          telefono: string | null
         }
         Insert: {
           creado_en?: string
-          direccion: string
+          direccion?: string | null
           id?: string
           nombre: string
           notas?: string | null
           referencia?: string | null
           sede_id: string
-          telefono: string
+          telefono?: string | null
         }
         Update: {
           creado_en?: string
-          direccion?: string
+          direccion?: string | null
           id?: string
           nombre?: string
           notas?: string | null
           referencia?: string | null
           sede_id?: string
-          telefono?: string
+          telefono?: string | null
         }
         Relationships: [
           {

@@ -2,8 +2,14 @@ import { z } from "zod";
 
 export const clienteDomicilioSchema = z.object({
   nombre: z.string().min(2, "Escribe el nombre del cliente"),
-  telefono: z.string().min(7, "Escribe un teléfono válido").max(15, "El teléfono es demasiado largo"),
-  direccion: z.string().min(5, "Escribe la dirección de entrega"),
+  // Teléfono y dirección son opcionales (decisión del usuario: en el local
+  // muchos pedidos para llevar solo necesitan un nombre); un campo vacío
+  // ("") cuenta como no diligenciado, pero si se escribe algo debe ser
+  // válido.
+  telefono: z
+    .union([z.literal(""), z.string().min(7, "Escribe un teléfono válido").max(15, "El teléfono es demasiado largo")])
+    .optional(),
+  direccion: z.union([z.literal(""), z.string().min(5, "Escribe la dirección de entrega")]).optional(),
   referencia: z.string().optional(),
 });
 export type ClienteDomicilioInput = z.infer<typeof clienteDomicilioSchema>;

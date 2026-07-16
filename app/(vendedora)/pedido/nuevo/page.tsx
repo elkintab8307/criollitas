@@ -46,7 +46,9 @@ export default function PedidoNuevoPage() {
         origen = { canal: "domicilio", clienteId };
         tituloOrigen = "Domicilio";
       } else {
-        origen = { canal: "llevar" };
+        // Para llevar puede traer clienteId (nombre del cliente, mismo
+        // formulario que domicilio) o venir sin él (camino offline).
+        origen = clienteId ? { canal: "llevar", clienteId } : { canal: "llevar" };
         tituloOrigen = "Para llevar";
       }
 
@@ -79,13 +81,15 @@ export default function PedidoNuevoPage() {
         if (mesaId) {
           const { data: mesaFila } = await supabase.from("mesas").select("numero").eq("id", mesaId).single();
           tituloOrigen = mesaFila ? `Mesa ${mesaFila.numero}` : "Mesa";
-        } else if (canal === "domicilio" && clienteId) {
+        } else if (clienteId) {
           const { data: clienteFila } = await supabase
             .from("clientes_domicilio")
             .select("nombre")
             .eq("id", clienteId)
             .single();
-          tituloOrigen = clienteFila ? clienteFila.nombre : "Domicilio";
+          if (clienteFila) {
+            tituloOrigen = canal === "domicilio" ? clienteFila.nombre : `Para llevar — ${clienteFila.nombre}`;
+          }
         }
 
         if (!cancelado) {

@@ -26,7 +26,7 @@ interface ColaCobroProps {
 function etiquetaOrigen(pedido: PedidoColaVista): string {
   if (pedido.canal === "mesa") return pedido.mesaNumero ? `Mesa ${pedido.mesaNumero}` : "Mesa";
   if (pedido.canal === "domicilio") return pedido.clienteNombre ?? "Domicilio";
-  return "Para llevar";
+  return pedido.clienteNombre ? `Para llevar — ${pedido.clienteNombre}` : "Para llevar";
 }
 
 async function cargarPedidoColaCompleto(

@@ -37,7 +37,7 @@ function pedidoIdDesdeUrl(): string {
 function etiquetaOrigen(canal: string, mesaNumero: number | null, clienteNombre: string | null): string {
   if (canal === "mesa") return mesaNumero ? `Mesa ${mesaNumero}` : "Mesa";
   if (canal === "domicilio") return clienteNombre ?? "Domicilio";
-  return "Para llevar";
+  return clienteNombre ? `Para llevar — ${clienteNombre}` : "Para llevar";
 }
 
 async function cargarOnline(pedidoId: string): Promise<DatosCobro | null> {
