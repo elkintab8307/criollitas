@@ -8,6 +8,7 @@ import { RegistradorManejadoresTurno } from "@/components/offline/RegistradorMan
 import { ActualizadorCatalogo } from "@/components/offline/ActualizadorCatalogo";
 import { RegistradorManejadoresPedido } from "@/components/offline/RegistradorManejadoresPedido";
 import { IndicadorPendientesSync } from "@/components/offline/IndicadorPendientesSync";
+import { BannerConectividad } from "@/components/offline/BannerConectividad";
 import "./globals.css";
 
 const fredoka = Fredoka({ subsets: ["latin"], variable: "--font-fredoka" });
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ActualizadorCatalogo />
         <RegistradorManejadoresPedido />
         <IndicadorPendientesSync />
+        <BannerConectividad />
         {children}
       </body>
     </html>

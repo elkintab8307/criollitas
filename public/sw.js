@@ -2,8 +2,53 @@ const CACHE_SHELL = "criollitas-shell-v2";
 const CACHE_RSC = "criollitas-rsc-v1";
 const CACHES_VIGENTES = [CACHE_SHELL, CACHE_RSC];
 
-self.addEventListener("install", () => {
-  self.skipWaiting();
+/** Cuenta las operaciones pendientes de la cola de sincronización leyendo
+ *  IndexedDB directo (Dexie no está disponible dentro del Service Worker).
+ *  Los nombres ("criollitas-offline", "colaSync", estado "pendiente")
+ *  deben coincidir con lib/offline/db.ts. Si algo falla (base aún no
+ *  creada, esquema viejo), se asume 0 -- bloquear la activación por un
+ *  error de lectura dejaría el SW viejo para siempre. */
+function contarPendientesColaSync() {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open("criollitas-offline");
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction("colaSync", "readonly");
+          const getAll = tx.objectStore("colaSync").getAll();
+          getAll.onsuccess = () => {
+            db.close();
+            resolve(getAll.result.filter((op) => op.estado === "pendiente").length);
+          };
+          getAll.onerror = () => {
+            db.close();
+            resolve(0);
+          };
+        } catch {
+          db.close();
+          resolve(0);
+        }
+      };
+      req.onerror = () => resolve(0);
+    } catch {
+      resolve(0);
+    }
+  });
+}
+
+self.addEventListener("install", (event) => {
+  // Una versión nueva del SW solo desplaza a la vigente si la cola de
+  // sincronización está vacía (spec del modo offline, "Orden de
+  // actualización"): datos encolados con el formato de la versión
+  // anterior deben subirse con el código que los creó. Si hay
+  // pendientes, el SW nuevo queda en espera y tomará control en un
+  // arranque futuro, cuando la cola ya esté vacía.
+  event.waitUntil(
+    contarPendientesColaSync().then((pendientes) => {
+      if (pendientes === 0) return self.skipWaiting();
+    }),
+  );
 });
 
 self.addEventListener("activate", (event) => {
