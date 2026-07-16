@@ -1,0 +1,22 @@
+{
+  "name": "print-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servicio local que recibe tickets ESC/POS desde Criollitas OS y los imprime en la impresora térmica de red del local.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "package": "pnpm build && pkg dist/index.js --targets node18-win-x64 --output print-bridge.exe"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "pkg": "^5.8.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}
