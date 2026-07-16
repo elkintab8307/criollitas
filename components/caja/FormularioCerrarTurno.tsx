@@ -12,6 +12,7 @@ import { cerrarTurno } from "@/app/(cajera)/turno/actions";
 import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
 import { encolarOperacion } from "@/lib/offline/cola";
+import { precargarRutasOffline } from "@/lib/offline/precargaRutas";
 
 interface FormularioCerrarTurnoProps {
   esperadoCop: MontoCOP;
@@ -44,14 +45,14 @@ export function FormularioCerrarTurno({ esperadoCop }: FormularioCerrarTurnoProp
         creadaEn: new Date().toISOString(),
       });
       useTurnoOfflineStore.getState().cerrar();
-      // Navegación completa (no router.push): /turno/abrir es la parada
-      // obligatoria tras iniciar sesión sin turno abierto (CLAUDE.md
-      // bloque F), así que ya quedó cacheada por el Service Worker como
-      // una petición GET normal. router.push haría un fetch "suave" con
-      // encabezados RSC que el Service Worker (Bloque J1) no reconoce
-      // como la misma respuesta cacheada, y fallaría offline (bug real
-      // encontrado con verificación en navegador).
-      window.location.href = "/turno/abrir";
+      // Navegación completa (no router.push, mismo motivo documentado en
+      // los otros formularios offline) hacia /pin y no hacia /turno/abrir:
+      // /turno/abrir solo es cacheable cuando NO hay turno abierto (con
+      // turno redirige y el guard de precarga la descarta), así que puede
+      // no tener copia si el turno se abrió rápido tras el PIN. /pin es
+      // pública, se cachea en toda pasada de precarga, y además es el
+      // paso natural tras cerrar el turno (fin del relevo).
+      window.location.href = "/pin";
       return;
     }
 
@@ -61,6 +62,10 @@ export function FormularioCerrarTurno({ esperadoCop }: FormularioCerrarTurnoProp
       return;
     }
     useTurnoOfflineStore.getState().cerrar();
+    // Recién ahora /turno/abrir vuelve a ser cacheable (sin turno abierto
+    // ya no redirige): refrescar la precarga deja el respaldo offline al
+    // día para el próximo corte de internet.
+    precargarRutasOffline();
     router.push("/turno/abrir");
   });
 
