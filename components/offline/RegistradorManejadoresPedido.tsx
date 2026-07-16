@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { registrarManejador } from "@/lib/offline/sync";
-import { crearPedidoConItems, type OrigenPedido } from "@/app/(vendedora)/pedido/actions";
+import { confirmarItemsPedido, crearPedidoConItems, type OrigenPedido } from "@/app/(vendedora)/pedido/actions";
 import type { EnviarPedidoInput } from "@/lib/validations/pedido";
 
 /** Registra en el motor de sincronización (Bloque J3a) cómo reproducir
@@ -22,6 +22,17 @@ export function RegistradorManejadoresPedido() {
         { items: payload.items as EnviarPedidoInput["items"] },
         payload.pedidoId as string,
       );
+      if (!resultado.ok) return { ok: false, mensaje: resultado.error.mensaje };
+      return { ok: true };
+    });
+
+    // Ítems agregados a un pedido local ya creado (Bloque J3e). La cola es
+    // FIFO (lib/offline/cola.ts ordena por creadaEn), así que el
+    // crear_pedido_con_items del mismo pedido siempre corre antes que esto.
+    registrarManejador("agregar_items_pedido", async (payload) => {
+      const resultado = await confirmarItemsPedido(payload.pedidoId as string, {
+        items: payload.items as EnviarPedidoInput["items"],
+      });
       if (!resultado.ok) return { ok: false, mensaje: resultado.error.mensaje };
       return { ok: true };
     });

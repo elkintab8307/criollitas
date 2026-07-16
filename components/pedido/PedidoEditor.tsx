@@ -14,6 +14,10 @@ interface PedidoEditorProps {
   productos: ProductoFila[];
   modificadores: ModificadorFila[];
   usaCocina: boolean;
+  /** Vuelve a cargar los datos del pedido tras confirmar ítems -- la página
+   *  es un Client Component (Bloque J3e) y router.refresh() ya no re-ejecuta
+   *  su carga de datos, así que el refresco lo hace ella misma. */
+  onRecargar: () => void;
 }
 
 const ESTADOS_TERMINALES = new Set(["cobrado", "cerrado", "anulado", "cancelado"]);
@@ -30,6 +34,7 @@ export function PedidoEditor({
   productos,
   modificadores,
   usaCocina,
+  onRecargar,
 }: PedidoEditorProps) {
   const soloLectura = ESTADOS_TERMINALES.has(pedido.estado);
 
@@ -57,6 +62,7 @@ export function PedidoEditor({
         itemsConfirmados={itemsConfirmados}
         soloLectura={soloLectura}
         usaCocina={usaCocina}
+        onRecargar={onRecargar}
       />
     </div>
   );

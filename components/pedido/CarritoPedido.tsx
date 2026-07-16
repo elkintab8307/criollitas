@@ -8,6 +8,10 @@ import { ClayBadge } from "@/components/ui/ClayBadge";
 import { ModalCancelarPedido } from "@/components/pedido/ModalCancelarPedido";
 import { useCarritoStore } from "@/lib/pedido/carritoStore";
 import { confirmarItemsPedido, cancelarPedido } from "@/app/(vendedora)/pedido/actions";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import { agregarItemsPedidoLocal, leerPedidoLocal } from "@/lib/offline/pedidosLocales";
+import { encolarOperacion } from "@/lib/offline/cola";
+import type { ItemPedidoLocal } from "@/lib/offline/db";
 import type { ItemConfirmadoVista, PedidoVista } from "@/components/pedido/tipos";
 
 const ETIQUETA_ESTADO_ITEM: Record<ItemConfirmadoVista["estadoItem"], string> = {
@@ -24,15 +28,18 @@ interface CarritoPedidoProps {
    *  puede tener ítems sin enviar, pero el botón de confirmar queda bloqueado. */
   soloLectura?: boolean;
   usaCocina: boolean;
+  /** Recarga los datos del pedido tras confirmar ítems (ver PedidoEditor). */
+  onRecargar: () => void;
 }
 
 /** Panel del carrito en curso (zustand) + ítems ya confirmados (solo lectura) + total. */
-export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, usaCocina }: CarritoPedidoProps) {
+export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, usaCocina, onRecargar }: CarritoPedidoProps) {
   const router = useRouter();
   const { items, quitar, cambiarCantidad, vaciar } = useCarritoStore();
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalCancelarAbierto, setModalCancelarAbierto] = useState(false);
+  const offline = useConectividadStore((s) => s.estado) === "offline";
 
   const totalCarritoEnCurso = sumar(
     ...items.map((item) =>
@@ -54,6 +61,51 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, u
     if (items.length === 0 || soloLectura) return;
     setError(null);
     setEnviando(true);
+
+    if (useConectividadStore.getState().estado === "offline") {
+      // Solo un pedido que ya vive en la copia local (creado offline,
+      // Bloque J3d) admite agregarle ítems sin conexión -- para un pedido
+      // que solo existe en el servidor no hay copia local que editar, y
+      // encolar la operación sin reflejarla en ninguna pantalla dejaría a
+      // la vendedora sin forma de ver lo que agregó.
+      const pedidoLocal = await leerPedidoLocal(pedido.id);
+      if (!pedidoLocal) {
+        setError("Este pedido no está guardado en este equipo. Conéctate a internet para modificarlo.");
+        setEnviando(false);
+        return;
+      }
+      const itemsLocales: ItemPedidoLocal[] = items.map((item) => ({
+        productoId: item.productoId,
+        nombre: item.nombre,
+        cantidad: item.cantidad,
+        precioUnitCop: Number(montoDesdePesos(item.precioUnitPesos)),
+        modificadores: item.modificadores.map((m) => ({
+          modificadorId: m.modificadorId,
+          nombre: m.nombre,
+          precioDeltaCop: Number(montoDesdePesos(m.precioDeltaPesos)),
+        })),
+        nota: item.nota || null,
+      }));
+      await agregarItemsPedidoLocal(pedido.id, itemsLocales);
+      await encolarOperacion({
+        tipo: "agregar_items_pedido",
+        payload: {
+          pedidoId: pedido.id,
+          items: items.map((item) => ({
+            productoId: item.productoId,
+            cantidad: item.cantidad,
+            modificadorIds: item.modificadores.map((m) => m.modificadorId),
+            nota: item.nota || undefined,
+          })),
+        },
+        creadaEn: new Date().toISOString(),
+      });
+      setEnviando(false);
+      vaciar();
+      onRecargar();
+      return;
+    }
+
     const resultado = await confirmarItemsPedido(pedido.id, {
       items: items.map((item) => ({
         productoId: item.productoId,
@@ -68,12 +120,14 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, u
       return;
     }
     vaciar();
-    router.refresh();
+    onRecargar();
   }
 
   return (
     <aside className="flex w-full flex-col gap-4 rounded-clay-lg bg-brand-crema p-4 shadow-clay-md sm:max-w-sm">
-      <h2 className="font-display text-lg font-semibold text-text-primary">Pedido #{pedido.numeroCorto}</h2>
+      <h2 className="font-display text-lg font-semibold text-text-primary">
+        {pedido.numeroCorto > 0 ? `Pedido #${pedido.numeroCorto}` : "Pedido (por sincronizar)"}
+      </h2>
 
       {itemsConfirmados.length > 0 ? (
         <div className="flex flex-col gap-2">
@@ -178,9 +232,15 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, u
           >
             {enviando ? "Enviando…" : textoBoton}
           </ClayButton>
-          <ClayButton type="button" variant="destructive" onClick={() => setModalCancelarAbierto(true)}>
-            Cancelar pedido
-          </ClayButton>
+          {offline ? (
+            <p className="text-sm text-text-secondary">
+              Cancelar un pedido no está disponible sin conexión.
+            </p>
+          ) : (
+            <ClayButton type="button" variant="destructive" onClick={() => setModalCancelarAbierto(true)}>
+              Cancelar pedido
+            </ClayButton>
+          )}
         </>
       )}
 

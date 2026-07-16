@@ -91,7 +91,11 @@ export function CarritoNuevo({ origen, usaCocina }: CarritoNuevoProps) {
       });
       setEnviando(false);
       vaciar();
-      router.push(`/pedido/${pedidoId}`);
+      // Navegación completa (no router.push): mismo motivo documentado en
+      // FormularioCerrarTurno.tsx. El Service Worker sirve la plantilla de
+      // /pedido/[id] (public/sw.js, Bloque J3e) porque este id recién
+      // creado no puede tener copia exacta precargada.
+      window.location.href = `/pedido/${pedidoId}`;
       return;
     }
 

@@ -1,8 +1,13 @@
 /** Rutas fijas que la Cajera necesita poder alcanzar con una navegación
  *  completa (window.location.href, no router.push) mientras está sin
- *  conexión. No incluye rutas dinámicas (ej. /pedido/[id]) -- esas no se
- *  pueden precargar porque el id no existe hasta que se crea (Bloque
- *  J3e se encarga de ese caso por separado). */
+ *  conexión. "/pedido/plantilla-offline" no es un pedido real: es el shell
+ *  de la ruta dinámica /pedido/[id] (Client Component que lee el id de la
+ *  URL real del navegador) -- el Service Worker lo sirve como respaldo
+ *  para CUALQUIER /pedido/<id> sin copia exacta (Bloque J3e), porque el id
+ *  de un pedido creado offline no existe hasta que se crea y no se puede
+ *  precargar individualmente. */
+export const RUTA_PLANTILLA_PEDIDO = "/pedido/plantilla-offline";
+
 export const RUTAS_PRECARGA_OFFLINE = [
   "/pin",
   "/turno/abrir",
@@ -11,6 +16,7 @@ export const RUTAS_PRECARGA_OFFLINE = [
   "/mi-turno",
   "/pedidos",
   "/pedido/nuevo",
+  RUTA_PLANTILLA_PEDIDO,
 ] as const;
 
 // Mismo nombre que usa public/sw.js para peticiones de navegación real --

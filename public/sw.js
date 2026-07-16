@@ -47,7 +47,11 @@ self.addEventListener("fetch", (event) => {
     const url = event.request.url;
     event.respondWith(
       caches.open(CACHE_SHELL).then(async (cache) => {
-        const cacheada = await cache.match(url, { ignoreVary: true });
+        // ignoreSearch: el shell precargado de /pedido/nuevo (sin query)
+        // sirve igual para /pedido/nuevo?canal=llevar o ?mesaId=... -- la
+        // página lee sus parámetros de la URL real del navegador, no del
+        // payload embebido (ver app/(vendedora)/pedido/nuevo/page.tsx).
+        const cacheada = await cache.match(url, { ignoreVary: true, ignoreSearch: true });
         if (cacheada) {
           fetch(url, { credentials: "same-origin" })
             .then((respuestaRed) => {
@@ -56,15 +60,31 @@ self.addEventListener("fetch", (event) => {
             .catch(() => {});
           return cacheada;
         }
-        const respuestaRed = await fetch(url, { credentials: "same-origin" });
-        // Una respuesta que vino de una redirección (ej. sin la cookie
-        // pin_validado todavía, cayó a /pin) no se guarda -- Chromium
-        // rechaza responder a una navegación con una respuesta así, y
-        // guardarla dejaría esa URL permanentemente rota offline (bug
-        // real, hallado con verificación en navegador: cache.match
-        // devolvía la respuesta de /pin bajo la clave /turno/abrir).
-        if (respuestaRed.ok && !respuestaRed.redirected) cache.put(url, respuestaRed.clone());
-        return respuestaRed;
+        try {
+          const respuestaRed = await fetch(url, { credentials: "same-origin" });
+          // Una respuesta que vino de una redirección (ej. sin la cookie
+          // pin_validado todavía, cayó a /pin) no se guarda -- Chromium
+          // rechaza responder a una navegación con una respuesta así, y
+          // guardarla dejaría esa URL permanentemente rota offline (bug
+          // real, hallado con verificación en navegador: cache.match
+          // devolvía la respuesta de /pin bajo la clave /turno/abrir).
+          if (respuestaRed.ok && !respuestaRed.redirected) cache.put(url, respuestaRed.clone());
+          return respuestaRed;
+        } catch (error) {
+          // Sin red y sin copia exacta: las rutas dinámicas de pedido
+          // (/pedido/<id>) comparten todas el mismo shell de página -- un
+          // Client Component que lee el id de la URL real del navegador
+          // (Bloque J3e). Se sirve la plantilla precargada
+          // (lib/offline/precargaRutas.ts, RUTA_PLANTILLA_PEDIDO); el id
+          // de un pedido creado offline no existía cuando se precargó,
+          // así que nunca puede haber copia exacta para él.
+          const pathname = new URL(url).pathname;
+          if (/^\/pedido\/[^/]+$/.test(pathname) && pathname !== "/pedido/nuevo") {
+            const plantilla = await cache.match("/pedido/plantilla-offline", { ignoreVary: true });
+            if (plantilla) return plantilla;
+          }
+          throw error;
+        }
       }),
     );
     return;

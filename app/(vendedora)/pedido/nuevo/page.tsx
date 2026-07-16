@@ -19,14 +19,23 @@ interface DatosPedidoNuevo {
 }
 
 export default function PedidoNuevoPage() {
+  // useSearchParams solo como disparador de reactividad (soft-navigation
+  // online con otros parámetros); los VALORES se leen de
+  // window.location.search dentro del efecto -- cuando el Service Worker
+  // sirve el shell cacheado de /pedido/nuevo sin query para una URL con
+  // query (ignoreSearch, public/sw.js), el payload embebido no trae los
+  // parámetros reales, la URL del navegador sí.
   const searchParams = useSearchParams();
+  const claveParams = searchParams.toString();
   const [datos, setDatos] = useState<DatosPedidoNuevo | null>(null);
-  const mesaId = searchParams.get("mesaId") ?? undefined;
-  const canal = searchParams.get("canal") ?? undefined;
-  const clienteId = searchParams.get("clienteId") ?? undefined;
 
   useEffect(() => {
     let cancelado = false;
+
+    const params = new URLSearchParams(window.location.search);
+    const mesaId = params.get("mesaId") ?? undefined;
+    const canal = params.get("canal") ?? undefined;
+    const clienteId = params.get("clienteId") ?? undefined;
 
     async function cargar() {
       let origen: OrigenPedido;
@@ -121,7 +130,7 @@ export default function PedidoNuevoPage() {
     return () => {
       cancelado = true;
     };
-  }, [mesaId, canal, clienteId]);
+  }, [claveParams]);
 
   if (!datos) return null;
 
