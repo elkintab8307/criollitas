@@ -43,40 +43,38 @@ function etiquetaOrigen(canal: string, mesaNumero: number | null, clienteNombre:
 
 async function cargarOnline(pedidoId: string): Promise<DatosCobro | null> {
   const supabase = createClient();
-  const { data: pedidoFila, error } = await supabase
-    .from("pedidos")
-    .select("id, numero_corto, estado, canal, mesa_id, cliente_id, subtotal_cop, total_cop")
-    .eq("id", pedidoId)
-    .single();
-  if (error && error.code !== "PGRST116") throw new Error("Sin conexión con el servidor");
+  // Consultas en paralelo (mismo motivo que /pedido/[id]: secuenciales
+  // dejaban la pantalla en blanco un par de segundos).
+  const [resPedido, resItems, sedeCache] = await Promise.all([
+    supabase
+      .from("pedidos")
+      .select("id, numero_corto, estado, canal, mesa_id, cliente_id, subtotal_cop, total_cop")
+      .eq("id", pedidoId)
+      .single(),
+    supabase.from("pedido_items").select("id, producto_id, cantidad, subtotal_cop").eq("pedido_id", pedidoId),
+    leerDelCatalogo("sede"),
+  ]);
+  const pedidoFila = resPedido.data;
+  if (resPedido.error && resPedido.error.code !== "PGRST116") throw new Error("Sin conexión con el servidor");
   if (!pedidoFila || !["listo", "entregado", "cobrado"].includes(pedidoFila.estado)) return null;
+  const itemsFilas = resItems.data;
 
-  let mesaNumero: number | null = null;
-  if (pedidoFila.mesa_id) {
-    const { data: mesaFila } = await supabase.from("mesas").select("numero").eq("id", pedidoFila.mesa_id).single();
-    mesaNumero = mesaFila?.numero ?? null;
-  }
-  let clienteNombre: string | null = null;
-  if (pedidoFila.cliente_id) {
-    const { data: clienteFila } = await supabase
-      .from("clientes_domicilio")
-      .select("nombre")
-      .eq("id", pedidoFila.cliente_id)
-      .single();
-    clienteNombre = clienteFila?.nombre ?? null;
-  }
-
-  const { data: itemsFilas } = await supabase
-    .from("pedido_items")
-    .select("id, producto_id, cantidad, subtotal_cop")
-    .eq("pedido_id", pedidoId);
   const productoIds = [...new Set((itemsFilas ?? []).map((i) => i.producto_id))];
-  const { data: productosFilas } = productoIds.length
-    ? await supabase.from("productos").select("id, nombre").in("id", productoIds)
-    : { data: [] as { id: string; nombre: string }[] };
-  const nombrePorId = new Map((productosFilas ?? []).map((p) => [p.id, p.nombre]));
+  const [resMesa, resCliente, resProductos] = await Promise.all([
+    pedidoFila.mesa_id
+      ? supabase.from("mesas").select("numero").eq("id", pedidoFila.mesa_id).single()
+      : Promise.resolve({ data: null }),
+    pedidoFila.cliente_id
+      ? supabase.from("clientes_domicilio").select("nombre").eq("id", pedidoFila.cliente_id).single()
+      : Promise.resolve({ data: null }),
+    productoIds.length
+      ? supabase.from("productos").select("id, nombre").in("id", productoIds)
+      : Promise.resolve({ data: [] as { id: string; nombre: string }[] }),
+  ]);
+  const mesaNumero = (resMesa.data as { numero: number } | null)?.numero ?? null;
+  const clienteNombre = (resCliente.data as { nombre: string } | null)?.nombre ?? null;
+  const nombrePorId = new Map((resProductos.data ?? []).map((p) => [p.id, p.nombre]));
 
-  const sedeCache = await leerDelCatalogo("sede");
   const sedeNombre = (sedeCache?.datos as { nombre?: string } | undefined)?.nombre ?? "Criollitas";
 
   const items: ItemCobroVista[] = (itemsFilas ?? []).map((i) => ({
@@ -150,19 +148,19 @@ export default function CobrarPedidoPage() {
         else setNoEncontrado(true);
         return;
       }
+      // Local-primero (mismo motivo que /pedido/[id]): la copia local se
+      // muestra al instante y los datos frescos la reemplazan al llegar.
+      const localInmediato = await cargarOffline(pedidoId);
+      if (localInmediato) setDatos(localInmediato);
       try {
         const online = await cargarOnline(pedidoId);
         if (online) {
           setDatos(online);
           return;
         }
-        const local = await cargarOffline(pedidoId);
-        if (local) setDatos(local);
-        else setNoEncontrado(true);
+        if (!localInmediato) setNoEncontrado(true);
       } catch {
-        const local = await cargarOffline(pedidoId);
-        if (local) setDatos(local);
-        else setNoEncontrado(true);
+        if (!localInmediato) setNoEncontrado(true);
       }
     })();
   }, []);
@@ -176,7 +174,13 @@ export default function CobrarPedidoPage() {
       </main>
     );
   }
-  if (!datos) return null;
+  if (!datos) {
+    return (
+      <main className="p-8">
+        <p className="text-brand-crema/70">Cargando pedido…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="p-8">

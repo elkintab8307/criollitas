@@ -32,64 +32,70 @@ function pedidoIdDesdeUrl(): string {
 async function cargarOnline(pedidoId: string): Promise<DatosPedido | null> {
   const supabase = createClient();
 
-  const { data: pedidoFila, error } = await supabase
-    .from("pedidos")
-    .select("id, numero_corto, canal, estado, subtotal_cop, total_cop, mesa_id, cliente_id, vendedora_id, sede_id")
-    .eq("id", pedidoId)
-    .single();
+  // Dos olas de consultas en paralelo (antes eran ~7 secuenciales y la
+  // pantalla quedaba en blanco 1-2s tras confirmar un pedido -- reporte
+  // real del usuario). Ola 1: todo lo que no depende de nada.
+  const [resPedido, resItems, resCategorias, resProductos, resModificadores] = await Promise.all([
+    supabase
+      .from("pedidos")
+      .select("id, numero_corto, canal, estado, subtotal_cop, total_cop, mesa_id, cliente_id, vendedora_id, sede_id")
+      .eq("id", pedidoId)
+      .single(),
+    supabase
+      .from("pedido_items")
+      .select("id, producto_id, cantidad, precio_unit_cop, subtotal_cop, notas, estado_item")
+      .eq("pedido_id", pedidoId),
+    supabase.from("categorias").select("id, nombre, orden, activa").eq("activa", true).order("orden", { ascending: true }),
+    supabase
+      .from("productos")
+      .select("id, nombre, descripcion, precio_cop, imagen_url, activo, categoria_id, tiempo_prep_min")
+      .eq("activo", true),
+    supabase
+      .from("modificadores")
+      .select("id, producto_id, grupo, nombre, precio_delta_cop, obligatorio, max_seleccion, activo")
+      .eq("activo", true),
+  ]);
+  const pedidoFila = resPedido.data;
   // Distinguir "no existe" (null sin error de red) de "sin conexión"
   // (error de red): sin conexión debe intentarse el camino local, no
   // mostrar "no encontrado".
-  if (error && error.code !== "PGRST116") throw new Error("Sin conexión con el servidor");
+  if (resPedido.error && resPedido.error.code !== "PGRST116") throw new Error("Sin conexión con el servidor");
   if (!pedidoFila) return null;
+  const itemsFilas = resItems.data;
+  const categorias = resCategorias.data;
+  const productos = resProductos.data;
+  const modificadores = resModificadores.data;
+  if (!categorias || !productos || !modificadores) throw new Error("Sin datos del servidor");
 
-  let mesaNumero: number | null = null;
-  if (pedidoFila.mesa_id) {
-    const { data: mesaFila } = await supabase.from("mesas").select("numero").eq("id", pedidoFila.mesa_id).single();
-    mesaNumero = mesaFila?.numero ?? null;
-  }
-
-  let clienteNombre: string | null = null;
-  if (pedidoFila.cliente_id) {
-    const { data: clienteFila } = await supabase
-      .from("clientes_domicilio")
-      .select("nombre")
-      .eq("id", pedidoFila.cliente_id)
-      .single();
-    clienteNombre = clienteFila?.nombre ?? null;
-  }
-
-  const { data: sedeFila } = await supabase
-    .from("sedes")
-    .select("usa_cocina")
-    .eq("id", pedidoFila.sede_id)
-    .maybeSingle();
-
-  const { data: itemsFilas } = await supabase
-    .from("pedido_items")
-    .select("id, producto_id, cantidad, precio_unit_cop, subtotal_cop, notas, estado_item")
-    .eq("pedido_id", pedidoId);
-
-  const productoIdsUsados = [...new Set((itemsFilas ?? []).map((i) => i.producto_id))];
-  const { data: productosUsados } = productoIdsUsados.length
-    ? await supabase.from("productos").select("id, nombre").in("id", productoIdsUsados)
-    : { data: [] as { id: string; nombre: string }[] };
-  const nombreProductoPorId = new Map((productosUsados ?? []).map((p) => [p.id, p.nombre]));
-
+  // Ola 2: lo que depende de la ola 1. Los nombres de productos y
+  // modificadores de los ítems salen del catálogo ya traído (activos); el
+  // fallback a "Producto"/"Adicional" cubre el caso raro de un ítem cuyo
+  // producto se desactivó después.
   const itemIds = (itemsFilas ?? []).map((i) => i.id);
-  const { data: modsFilas } = itemIds.length
-    ? await supabase
-        .from("pedido_item_mods")
-        .select("id, pedido_item_id, modificador_id, precio_delta_cop")
-        .in("pedido_item_id", itemIds)
-    : {
-        data: [] as { id: string; pedido_item_id: string; modificador_id: string; precio_delta_cop: number }[],
-      };
-  const modificadorIdsUsados = [...new Set((modsFilas ?? []).map((m) => m.modificador_id))];
-  const { data: modificadoresUsados } = modificadorIdsUsados.length
-    ? await supabase.from("modificadores").select("id, nombre").in("id", modificadorIdsUsados)
-    : { data: [] as { id: string; nombre: string }[] };
-  const nombreModificadorPorId = new Map((modificadoresUsados ?? []).map((m) => [m.id, m.nombre]));
+  const [resMesa, resCliente, resSede, resMods] = await Promise.all([
+    pedidoFila.mesa_id
+      ? supabase.from("mesas").select("numero").eq("id", pedidoFila.mesa_id).single()
+      : Promise.resolve({ data: null }),
+    pedidoFila.cliente_id
+      ? supabase.from("clientes_domicilio").select("nombre").eq("id", pedidoFila.cliente_id).single()
+      : Promise.resolve({ data: null }),
+    supabase.from("sedes").select("usa_cocina").eq("id", pedidoFila.sede_id).maybeSingle(),
+    itemIds.length
+      ? supabase
+          .from("pedido_item_mods")
+          .select("id, pedido_item_id, modificador_id, precio_delta_cop")
+          .in("pedido_item_id", itemIds)
+      : Promise.resolve({
+          data: [] as { id: string; pedido_item_id: string; modificador_id: string; precio_delta_cop: number }[],
+        }),
+  ]);
+  const mesaNumero = (resMesa.data as { numero: number } | null)?.numero ?? null;
+  const clienteNombre = (resCliente.data as { nombre: string } | null)?.nombre ?? null;
+  const sedeFila = resSede.data;
+  const modsFilas = resMods.data;
+
+  const nombreProductoPorId = new Map(productos.map((p) => [p.id, p.nombre]));
+  const nombreModificadorPorId = new Map(modificadores.map((m) => [m.id, m.nombre]));
 
   const itemsConfirmados: ItemConfirmadoVista[] = (itemsFilas ?? []).map((fila) => ({
     id: fila.id,
@@ -106,19 +112,6 @@ async function cargarOnline(pedidoId: string): Promise<DatosPedido | null> {
         precioDeltaCop: m.precio_delta_cop,
       })),
   }));
-
-  const [{ data: categorias }, { data: productos }, { data: modificadores }] = await Promise.all([
-    supabase.from("categorias").select("id, nombre, orden, activa").eq("activa", true).order("orden", { ascending: true }),
-    supabase
-      .from("productos")
-      .select("id, nombre, descripcion, precio_cop, imagen_url, activo, categoria_id, tiempo_prep_min")
-      .eq("activo", true),
-    supabase
-      .from("modificadores")
-      .select("id, producto_id, grupo, nombre, precio_delta_cop, obligatorio, max_seleccion, activo")
-      .eq("activo", true),
-  ]);
-  if (!categorias || !productos || !modificadores) throw new Error("Sin datos del servidor");
 
   return {
     pedido: {
@@ -184,6 +177,13 @@ export default function PedidoPage() {
       else setNoEncontrado(true);
       return;
     }
+    // Local-primero: la copia local (IndexedDB, milisegundos) se muestra de
+    // inmediato -- existe para todo pedido recién creado en este equipo,
+    // online u offline (CarritoNuevo la escribe en ambos caminos). Los datos
+    // frescos del servidor la reemplazan cuando llegan. Sin esto, la
+    // pantalla quedaba en blanco 1-2s tras confirmar (reporte del usuario).
+    const localInmediato = await cargarOffline(pedidoId);
+    if (localInmediato) setDatos(localInmediato);
     try {
       const online = await cargarOnline(pedidoId);
       if (online) {
@@ -191,16 +191,13 @@ export default function PedidoPage() {
         return;
       }
       // El servidor respondió pero el pedido no existe allá todavía --
-      // puede ser un pedido creado offline aún sin sincronizar: intentar
-      // el camino local antes de dar "no encontrado".
-      const local = await cargarOffline(pedidoId);
-      if (local) setDatos(local);
-      else setNoEncontrado(true);
+      // puede ser un pedido creado offline aún sin sincronizar: la copia
+      // local ya mostrada es la vista correcta; sin copia, no encontrado.
+      if (!localInmediato) setNoEncontrado(true);
     } catch {
-      // Sin conexión: leer la copia local (Bloque J3d).
-      const local = await cargarOffline(pedidoId);
-      if (local) setDatos(local);
-      else setNoEncontrado(true);
+      // Sin conexión: la copia local ya mostrada (Bloque J3d) es todo lo
+      // que hay.
+      if (!localInmediato) setNoEncontrado(true);
     }
   }, []);
 
@@ -217,7 +214,15 @@ export default function PedidoPage() {
       </main>
     );
   }
-  if (!datos) return null;
+  if (!datos) {
+    // Nunca pantalla vacía: si la copia local aún no llegó (caso raro,
+    // pedido de otro equipo), al menos se ve que algo está cargando.
+    return (
+      <main className="p-8">
+        <p className="text-brand-crema/70">Cargando pedido…</p>
+      </main>
+    );
+  }
 
   const { pedido } = datos;
   return (
