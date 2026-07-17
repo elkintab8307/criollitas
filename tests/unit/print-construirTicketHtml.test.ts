@@ -75,10 +75,12 @@ describe("construirTicketHtml", () => {
     expect(html).toContain("&amp; Cía");
   });
 
-  it("incluye reglas @page para papel de 80mm", () => {
+  it("incluye reglas @page al ancho imprimible real (72mm de una térmica de 80mm)", () => {
     const html = construirTicketHtml(datosBase);
     expect(html).toContain("@page");
-    expect(html).toContain("80mm");
+    // 72mm, no 80mm: el cabezal no llega a los bordes del papel y diseñar
+    // al ancho completo cortaba el borde derecho (reporte del usuario).
+    expect(html).toContain("72mm");
   });
 
   it("incluye el logo embebido (data URI) antes de la marca", () => {

@@ -27,6 +27,8 @@ export default async function VendedoraLayout({ children }: { children: React.Re
           Ventas
         </Link>
         <div className="flex flex-wrap items-center gap-6">
+          {/* "Domicilios y para llevar" retirado del menú a pedido del
+              usuario (la cola de cobro ya muestra esos pedidos). */}
           {esCajera ? (
             <Link
               href="/pedidos"
@@ -35,12 +37,6 @@ export default async function VendedoraLayout({ children }: { children: React.Re
               Volver a caja
             </Link>
           ) : null}
-          <Link
-            href="/mis-pedidos"
-            className="font-display text-sm text-brand-crema/70 transition-colors duration-150 hover:text-brand-crema focus-visible:outline-3 focus-visible:outline-brand-mostaza focus-visible:outline-offset-2"
-          >
-            Domicilios y para llevar
-          </Link>
           <BotonCerrarSesion />
         </div>
       </header>

@@ -7,7 +7,12 @@ import type { DatosTicket } from "@/lib/escpos/contenido";
 // USB (nombre PRINTER_CRIOLLITAS, puerto USB001) -- el navegador imprime la
 // impresora que el sistema operativo maneja, ya no bytes ESC/POS crudos por
 // red (CLAUDE.md §10).
-const ANCHO_MM = "80mm";
+//
+// 72mm, no 80mm: el ÁREA IMPRIMIBLE de una térmica de 80mm es ~72mm -- el
+// cabezal no llega a los bordes y el driver corre el contenido hacia la
+// derecha su margen físico. Diseñar a 80mm hacía que el borde derecho
+// saliera cortado (reporte real del usuario).
+const ANCHO_MM = "72mm";
 
 const ETIQUETA_METODO: Record<string, string> = {
   efectivo: "Efectivo",
@@ -72,16 +77,16 @@ export function construirTicketHtml(datos: DatosTicket): string {
   html, body { height: auto; }
   body {
     width: ${ANCHO_MM};
-    /* Sin padding superior: el papel ya sale con su propio margen físico
-       de la impresora, y el logo (ya recortado a su contenido) va pegado
-       al inicio -- antes había un espacio muerto arriba (reporte del
-       usuario). */
-    padding: 0 3mm 0 3mm;
+    /* Sin padding superior (el papel ya sale con margen físico propio) y
+       sin padding izquierdo: la impresora corre el contenido a la derecha
+       su margen físico, y sumarle más lo cortaba por el borde derecho
+       (reporte del usuario). Solo 2mm a la derecha como colchón. */
+    padding: 0 2mm 0 0;
     /* Sans-serif, grande y TODO en negrita: en térmicas de 203dpi los
        trazos finos salen claritos y el texto pequeño ilegible (reportes
        reales del usuario) -- trazo grueso = impresión más oscura. */
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 700;
     line-height: 1.35;
     color: #000;
@@ -93,9 +98,9 @@ export function construirTicketHtml(datos: DatosTicket): string {
   .sep { border-top: 2px solid #000; margin: 5px 0; }
   .fila, .fila-item { display: flex; justify-content: space-between; gap: 8px; }
   .fila-item span:last-child { white-space: nowrap; }
-  .total { font-weight: 900; font-size: 23px; }
-  .marca { font-weight: 900; font-size: 19px; }
-  .suave { font-size: 14px; }
+  .total { font-weight: 900; font-size: 21px; }
+  .marca { font-weight: 900; font-size: 17px; }
+  .suave { font-size: 13px; }
   .logo { display: block; width: 32mm; margin: 0 auto 1mm auto; }
   /* Papel extra tras el texto para poder cortar sin comerse el contenido
      (pedido del usuario: al menos 2cm). */
