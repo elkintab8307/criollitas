@@ -7,6 +7,7 @@ import { leerPedidoLocal } from "@/lib/offline/pedidosLocales";
 import { leerDelCatalogo } from "@/lib/offline/catalogo";
 import { construirVistaPedidoLocal, type MesaCacheada } from "@/lib/offline/pedidoLocalVista";
 import { FormularioCobro, type TicketOffline } from "@/components/caja/FormularioCobro";
+import { BotonReimprimir } from "@/components/caja/BotonReimprimir";
 import { formatearCOP } from "@/lib/money";
 
 interface ItemCobroVista {
@@ -203,9 +204,10 @@ export default function CobrarPedidoPage() {
           </div>
         </div>
         {datos.yaEstaCobrado ? (
-          <p className="rounded-clay-md bg-brand-chocolate-2 p-6 text-center text-xl text-brand-crema/70">
-            Este pedido ya fue cobrado.
-          </p>
+          <div className="flex flex-col gap-4 rounded-clay-md bg-brand-chocolate-2 p-6 text-center">
+            <p className="text-xl text-brand-crema/70">Este pedido ya fue cobrado.</p>
+            <BotonReimprimir pedidoId={datos.pedidoId} />
+          </div>
         ) : (
           <FormularioCobro pedidoId={datos.pedidoId} totalCop={BigInt(datos.totalCop)} ticketOffline={datos.ticketOffline} />
         )}

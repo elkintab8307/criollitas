@@ -1,5 +1,6 @@
 import { formatearCOP } from "@/lib/money";
 import { formatearFecha } from "@/lib/dates";
+import { LOGO_TICKET_DATA_URI } from "@/lib/print/logoTicket";
 import type { DatosTicket } from "@/lib/escpos/contenido";
 
 // Impresora real: térmica de 80mm instalada en Windows como impresora local
@@ -78,9 +79,11 @@ export function construirTicketHtml(datos: DatosTicket): string {
   .fila-item span:last-child { white-space: nowrap; }
   .total { font-weight: bold; font-size: 14px; }
   .marca { font-weight: bold; font-size: 14px; }
+  .logo { display: block; width: 40mm; margin: 0 auto 2mm auto; }
 </style>
 </head>
 <body>
+  <img class="logo" src="${LOGO_TICKET_DATA_URI}" alt="" />
   <div class="centro marca">Criollitas - Arepas Rellenas</div>
   <div class="centro">${escaparHtml(datos.sedeNombre)}</div>
   <div class="sep"></div>

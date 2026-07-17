@@ -80,4 +80,12 @@ describe("construirTicketHtml", () => {
     expect(html).toContain("@page");
     expect(html).toContain("80mm");
   });
+
+  it("incluye el logo embebido (data URI) antes de la marca", () => {
+    const html = construirTicketHtml(datosBase);
+    const posLogo = html.indexOf("data:image/png;base64,");
+    const posMarca = html.indexOf("Criollitas - Arepas Rellenas");
+    expect(posLogo).toBeGreaterThan(-1);
+    expect(posLogo).toBeLessThan(posMarca);
+  });
 });

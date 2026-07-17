@@ -119,6 +119,26 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, u
       setError(resultado.error.mensaje);
       return;
     }
+    // Mantener la copia local al día también en el camino ONLINE (mismo
+    // motivo que CarritoNuevo.tsx): si el internet se cae después de
+    // agregar estos ítems y antes de que /pedidos refresque el caché, la
+    // cajera cobraría offline un total viejo. agregarItemsPedidoLocal no
+    // hace nada si el pedido no tiene copia local.
+    await agregarItemsPedidoLocal(
+      pedido.id,
+      items.map((item) => ({
+        productoId: item.productoId,
+        nombre: item.nombre,
+        cantidad: item.cantidad,
+        precioUnitCop: Number(montoDesdePesos(item.precioUnitPesos)),
+        modificadores: item.modificadores.map((m) => ({
+          modificadorId: m.modificadorId,
+          nombre: m.nombre,
+          precioDeltaCop: Number(montoDesdePesos(m.precioDeltaPesos)),
+        })),
+        nota: item.nota || null,
+      })),
+    );
     vaciar();
     onRecargar();
   }

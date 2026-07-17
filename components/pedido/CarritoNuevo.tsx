@@ -112,6 +112,35 @@ export function CarritoNuevo({ origen, usaCocina }: CarritoNuevoProps) {
       setError(resultado.error.mensaje);
       return;
     }
+    // Copia local también en el camino ONLINE: sin ella, un pedido creado
+    // con internet solo se puede cobrar offline si alguien visitó /pedidos
+    // (que refresca el caché) antes del corte -- si el internet se cae
+    // justo después de crearlo, quedaba invisible para la cajera (hallazgo
+    // real, hallado con verificación en navegador). El refresco desde el
+    // servidor la reemplaza después con datos canónicos.
+    const sesionLocal = useSesionOfflineStore.getState().sesion;
+    if (sesionLocal) {
+      await crearPedidoLocal({
+        pedidoId: resultado.valor.pedidoId,
+        origen,
+        items: items.map((item) => ({
+          productoId: item.productoId,
+          nombre: item.nombre,
+          cantidad: item.cantidad,
+          precioUnitCop: Number(montoDesdePesos(item.precioUnitPesos)),
+          modificadores: item.modificadores.map((m) => ({
+            modificadorId: m.modificadorId,
+            nombre: m.nombre,
+            precioDeltaCop: Number(montoDesdePesos(m.precioDeltaPesos)),
+          })),
+          nota: item.nota || null,
+        })),
+        estado: "abierto",
+        sedeId: sesionLocal.sedeId,
+        vendedoraId: sesionLocal.usuarioId,
+        creadoEn: new Date().toISOString(),
+      });
+    }
     vaciar();
     router.push(`/pedido/${resultado.valor.pedidoId}`);
   }

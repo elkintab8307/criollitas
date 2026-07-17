@@ -288,3 +288,36 @@ export async function prepararReintentoImpresion(
   }
   return ok({ impresionId: impresionFila.id, html: impresionFila.contenido_html });
 }
+
+/** Como prepararReintentoImpresion, pero partiendo del pedido: busca su
+ *  tirilla más reciente. Lo usa el botón "Reimprimir tirilla" de
+ *  /cobrar/[pedidoId] en un pedido ya cobrado -- la pantalla conoce el
+ *  pedido, no el id de la impresión. */
+export async function prepararReimpresionPorPedido(
+  pedidoId: string,
+): Promise<Result<DatosImpresionCliente, DomainError>> {
+  const ctx = await exigirCajera();
+  if (!ctx.ok) return ctx;
+  if (!uuidValido(pedidoId)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador de pedido inválido" });
+  }
+  const supabase = await createServerSupabase();
+  const { data: impresionFila } = await supabase
+    .from("impresiones")
+    .select("id, contenido_html")
+    .eq("pedido_id", pedidoId)
+    .eq("tipo", "tirilla_cobro")
+    .order("creado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!impresionFila) {
+    return err({ codigo: "NO_ENCONTRADO", mensaje: "Este pedido no tiene una tirilla guardada" });
+  }
+  if (!impresionFila.contenido_html) {
+    return err({
+      codigo: "VALIDACION",
+      mensaje: "Esta impresión es de un formato anterior y no se puede reimprimir automáticamente",
+    });
+  }
+  return ok({ impresionId: impresionFila.id, html: impresionFila.contenido_html });
+}
