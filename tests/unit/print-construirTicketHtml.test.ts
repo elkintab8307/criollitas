@@ -59,7 +59,9 @@ describe("construirTicketHtml", () => {
 
   it("numeroCorto 0 (pedido cobrado offline) -> línea alternativa sin #0", () => {
     const html = construirTicketHtml({ ...datosBase, numeroCorto: 0 });
-    expect(html).not.toContain("#0");
+    // "Pedido #0" y no "#0" a secas: los colores del CSS embebido (#000)
+    // contienen "#0" y daban falso positivo.
+    expect(html).not.toContain("Pedido #0");
     expect(html).toContain("Pedido (por sincronizar)");
   });
 
