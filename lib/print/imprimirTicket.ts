@@ -11,18 +11,25 @@ export interface ResultadoSolicitudImpresion {
 // solo si es la predeterminada de Windows.
 export const NOMBRE_IMPRESORA_ESPERADA = "PRINTER_CRIOLLITAS";
 
-/** Abre una ventana con el ticket ya formateado y dispara el diálogo nativo
- *  de impresión del navegador (CLAUDE.md §10.2: reemplaza el envío ESC/POS
- *  por red -- ahora la impresora es una impresora USB normal que Windows ya
- *  sabe manejar). Llama a print() de forma síncrona (sin setTimeout): el
- *  ticket es HTML/CSS inline sin recursos externos, así que document.write
- *  + document.close() lo deja completamente pintado antes de continuar --
- *  un delay asíncrono se perdería en el flujo offline, que navega a otra
- *  página (window.location.href) justo después de llamar a esta función.
- *  Nunca lanza: un fallo aquí no debe romper el flujo de cobro, que ya
- *  quedó confirmado antes de llegar a este paso. Sin test unitario (efectos
- *  de navegador: window.open/print, mismo criterio que
- *  RegistradorManejadoresPedido.tsx). */
+// Se inyecta dentro del documento del ticket: la impresión se dispara EN LA
+// PROPIA VENTANA cuando su evento load ya corrió -- es decir, con el logo
+// (data URI) ya decodificado y pintado. Llamar ventana.print() desde afuera
+// justo tras document.close() capturaba la página antes de que la imagen
+// terminara de pintarse y la tirilla salía sin logo (bug real reportado por
+// el usuario). Correr dentro de la ventana también la hace independiente de
+// que la página que la abrió navegue inmediatamente después (flujo offline).
+const SCRIPT_AUTOIMPRESION = `<script>
+  window.addEventListener("load", function () {
+    setTimeout(function () { window.print(); }, 80);
+  });
+  window.addEventListener("afterprint", function () { window.close(); });
+</script>`;
+
+/** Abre una ventana con el ticket ya formateado; la ventana se imprime sola
+ *  al terminar de cargar (ver SCRIPT_AUTOIMPRESION) y se cierra al salir
+ *  del diálogo. Nunca lanza: un fallo aquí no debe romper el flujo de
+ *  cobro, que ya quedó confirmado antes de llegar a este paso. Sin test
+ *  unitario (efectos de navegador: window.open/print). */
 export function solicitarImpresionTicket(html: string): ResultadoSolicitudImpresion {
   try {
     const ventana = window.open("", "_blank", "width=380,height=600");
@@ -32,12 +39,13 @@ export function solicitarImpresionTicket(html: string): ResultadoSolicitudImpres
         error: "El navegador bloqueó la ventana de impresión (revisa el bloqueador de ventanas emergentes)",
       };
     }
+    const htmlConAutoimpresion = html.includes("</body>")
+      ? html.replace("</body>", `${SCRIPT_AUTOIMPRESION}</body>`)
+      : html + SCRIPT_AUTOIMPRESION;
     ventana.document.open();
-    ventana.document.write(html);
+    ventana.document.write(htmlConAutoimpresion);
     ventana.document.close();
-    ventana.onafterprint = () => ventana.close();
     ventana.focus();
-    ventana.print();
     return { exito: true, error: null };
   } catch (error) {
     return {

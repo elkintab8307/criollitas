@@ -62,33 +62,43 @@ export function construirTicketHtml(datos: DatosTicket): string {
 <meta charset="utf-8" />
 <title>${lineaPedido}</title>
 <style>
+  /* size con alto AUTO: la página mide exactamente lo que mide el
+     contenido -- clave para que la impresora corte ahí y no alimente el
+     resto de un largo fijo. El driver de Windows también debe tener un
+     tamaño de papel de largo variable ("80 x Receipt"), ver CLAUDE.md
+     §10.3. */
   @page { size: ${ANCHO_MM} auto; margin: 0; }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: auto; }
   body {
     width: ${ANCHO_MM};
-    margin: 0;
-    padding: 4mm;
-    font-family: "Courier New", monospace;
-    font-size: 12px;
+    padding: 1mm 3mm 2mm 3mm;
+    /* Sans-serif y tamaños grandes: en térmicas de 203dpi el Courier de
+       12px salía diminuto e ilegible (reporte real del usuario). */
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.35;
     color: #000;
     background: #fff;
   }
   .centro { text-align: center; }
-  .sep { border-top: 1px dashed #000; margin: 6px 0; }
+  .sep { border-top: 2px dashed #000; margin: 5px 0; }
   .fila, .fila-item { display: flex; justify-content: space-between; gap: 8px; }
   .fila-item span:last-child { white-space: nowrap; }
-  .total { font-weight: bold; font-size: 14px; }
-  .marca { font-weight: bold; font-size: 14px; }
-  .logo { display: block; width: 40mm; margin: 0 auto 2mm auto; }
+  .total { font-weight: 800; font-size: 22px; }
+  .marca { font-weight: 800; font-size: 19px; }
+  .suave { font-size: 14px; }
+  .logo { display: block; width: 34mm; margin: 0 auto 1mm auto; }
 </style>
 </head>
 <body>
   <img class="logo" src="${LOGO_TICKET_DATA_URI}" alt="" />
   <div class="centro marca">Criollitas - Arepas Rellenas</div>
-  <div class="centro">${escaparHtml(datos.sedeNombre)}</div>
+  <div class="centro suave">${escaparHtml(datos.sedeNombre)}</div>
   <div class="sep"></div>
   <div>${lineaPedido}</div>
-  <div>${formatearFecha(datos.fecha)}</div>
+  <div class="suave">${formatearFecha(datos.fecha)}</div>
   <div>${escaparHtml(datos.origen)}</div>
   <div class="sep"></div>
   ${filasItems}
@@ -99,7 +109,7 @@ export function construirTicketHtml(datos: DatosTicket): string {
   ${filasPagos}
   <div class="sep"></div>
   <div class="centro">¡Gracias por tu compra!</div>
-  <div class="centro">@criollitas_armenia</div>
+  <div class="centro suave">@criollitas_armenia</div>
 </body>
 </html>`;
 }
