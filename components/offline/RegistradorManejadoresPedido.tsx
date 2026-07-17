@@ -48,7 +48,7 @@ export function RegistradorManejadoresPedido() {
         payload.pedidoId as string,
         { pagos: payload.pagos as CobrarPedidoInput["pagos"] },
         {
-          contenidoBase64: payload.contenidoEscposBase64 as string,
+          html: payload.contenidoHtml as string,
           exito: payload.impresionExito as boolean,
           error: (payload.impresionError as string | null) ?? null,
         },

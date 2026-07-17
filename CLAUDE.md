@@ -555,25 +555,19 @@ Cada uno vive en `components/ui/` y expone variantes vía `cva` (`class-variance
 
 ## 10. Impresión POS — arquitectura
 
-### 10.1 Servicio `print-bridge`
+### 10.1 Impresora USB local
 
-Pequeña app Node.js que corre en la PC de caja (o en un mini-PC / Raspberry Pi conectado por LAN). Expone:
-
-```
-POST http://<ip-local>:7070/print
-  Body: { "printer": "caja-01", "escpos_base64": "..." }
-  Auth: header X-Bridge-Token (compartido con la app Next.js)
-```
-
-Internamente, al recibir `POST /print`, abre un socket TCP contra `PRINTER_IP:PRINTER_PORT` (puerto 9100 típico, protocolo raw/JetDirect) y escribe los bytes ESC/POS decodificados -- la IP de la impresora vive en `print-bridge/.env`, no en el body de la petición. Sin cola en disco ni reintentos propios: la app ya absorbe un fallo de impresión a su nivel (`impresiones.exito = false`, reintento manual). Se distribuye como `print-bridge.exe` empaquetado con `pkg` -- el usuario no necesita instalar Node.js. Ver `docs/superpowers/specs/2026-07-15-print-bridge-red-design.md` para el diseño completo y `print-bridge/README.md` para la puesta en marcha.
+La impresora térmica se conecta por USB directamente al PC de caja y se instala en Windows como una impresora local normal (Panel de impresoras → Agregar impresora → puerto `USB001`, nombre `PRINTER_CRIOLLITAS`, marcada como impresora predeterminada de ese equipo). Windows se encarga del driver; la app no habla ESC/POS ni abre sockets TCP contra la impresora — imprime como cualquier página web.
 
 ### 10.2 Cliente
 
-`lib/escpos/` construye el ticket con un builder tipado (encabezado, línea, alineación, corte, apertura de cajón). La app se despliega en Vercel (nube): el servidor **no tiene ruta de red hacia la IP LAN del print-bridge**, así que el `POST /print` nunca lo hace el servidor — lo hace el navegador de la Cajera, que sí está en la misma red que el print-bridge (`lib/escpos/clienteBridge.ts`, `enviarAlPrintBridgeDesdeNavegador`). El flujo: la Server Action `cobrarPedido` calcula el total, registra los pagos, cambia el estado a `cobrado`, arma el ticket ESC/POS y lo deja guardado en `impresiones` (`prepararImpresionTirilla`) — y devuelve ese contenido al cliente. `FormularioCobro.tsx` recibe la respuesta y, **después** de que el cobro ya quedó confirmado, hace el `POST` al print-bridge desde el propio navegador y reporta el resultado con la Server Action `reportarResultadoImpresion`. Si el bridge falla, el pago queda registrado igual y se marca `impresiones.exito = false` para reintento manual (`prepararReintentoImpresion`) desde la vista de Cajera. Por esto `PRINT_BRIDGE_URL`/`PRINT_BRIDGE_TOKEN` son variables `NEXT_PUBLIC_` (visibles en el navegador) — el print-bridge solo escucha en la LAN del local, así que ese token no protege nada que un atacante en internet pudiera alcanzar de todos modos.
+`lib/print/construirTicketHtml.ts` arma un documento HTML autocontenido de la tirilla (ancho fijo 80mm vía `@page`), función pura reutilizable en servidor y navegador. El flujo: la Server Action `cobrarPedido` calcula el total, registra los pagos, cambia el estado a `cobrado`, arma el HTML del ticket y lo deja guardado en `impresiones.contenido_html` (`prepararImpresionTirilla`) — y devuelve ese HTML al cliente. `FormularioCobro.tsx` recibe la respuesta y, **después** de que el cobro ya quedó confirmado, llama a `solicitarImpresionTicket` (`lib/print/imprimirTicket.ts`), que abre una ventana nueva con el ticket y dispara `window.print()` — el navegador muestra el diálogo nativo de impresión de Windows, con `PRINTER_CRIOLLITAS` preseleccionada si quedó como predeterminada. El resultado (si la ventana logró abrirse) se reporta con la Server Action `reportarResultadoImpresion`. Las APIs web no permiten elegir una impresora por código ni confirmar que el papel salió: `impresiones.exito` refleja solo si la solicitud de impresión pudo abrirse, no si el ticket físico imprimió — un fallo real (papel atascado, impresora apagada) solo lo nota la Cajera mirando la impresora, igual que con cualquier impresora de PC. Reintento manual disponible con `prepararReintentoImpresion` (reabre la misma ventana con el HTML guardado).
+
+Este flujo reemplaza al anterior basado en `print-bridge` (servicio Node.js con socket TCP a una impresora de red) y en `lib/escpos/` (builder de bytes ESC/POS). Ese código queda en el repo sin usarse por si la sede crece a una impresora de red que sí lo necesite; no se borra por no ser una decisión reversible barata, pero no forma parte del flujo de cobro actual.
 
 ### 10.3 Configuración
 
-Hoy la configuración de la impresora vive en `print-bridge/.env` (`PRINTER_IP`, `PRINTER_PORT`, un solo valor -- una Cajera, una impresora). La tabla `sedes.impresoras` mencionada en versiones previas de este documento como UI de Admin para registrar impresoras por IP/ancho/copias **no existe todavía** -- se construye si el negocio crece a más sedes o impresoras (fuera de alcance del diseño actual, ver `docs/superpowers/specs/2026-07-15-print-bridge-red-design.md`).
+La configuración de la impresora vive enteramente en Windows (puerto `USB001`, nombre `PRINTER_CRIOLLITAS`, predeterminada) — no hay variables de entorno ni tabla en Supabase que la describan. `NEXT_PUBLIC_PRINT_BRIDGE_URL`/`NEXT_PUBLIC_PRINT_BRIDGE_TOKEN` (§14) quedaron sin uso; se dejan documentadas como legado por si se reactiva `print-bridge` más adelante.
 
 ---
 
@@ -631,7 +625,9 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=            # solo servidor
 
-NEXT_PUBLIC_PRINT_BRIDGE_URL=http://192.168.x.x:7070  # el navegador de la Cajera llama esto directo, ver §10.2
+# Legado del print-bridge por red (§10.1) -- sin uso desde que la impresión
+# es por USB local; no se requieren para el flujo de cobro actual.
+NEXT_PUBLIC_PRINT_BRIDGE_URL=http://192.168.x.x:7070
 NEXT_PUBLIC_PRINT_BRIDGE_TOKEN=
 
 NEXT_PUBLIC_APP_TZ=America/Bogota

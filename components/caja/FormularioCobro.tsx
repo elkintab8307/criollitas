@@ -8,9 +8,8 @@ import { formatearCOP, montoDesdePesos, sumar, type MontoCOP } from "@/lib/money
 import { calcularVuelto, pagosCuadranConTotal } from "@/lib/caja/cuadrePago";
 import type { PagoInput } from "@/lib/validations/cobro";
 import { cobrarPedido, reportarResultadoImpresion } from "@/app/(cajera)/cobrar/actions";
-import { enviarAlPrintBridgeDesdeNavegador } from "@/lib/escpos/clienteBridge";
-import { construirLineasTicket } from "@/lib/escpos/contenido";
-import { codificarEscPos } from "@/lib/escpos/codificar";
+import { solicitarImpresionTicket } from "@/lib/print/imprimirTicket";
+import { construirTicketHtml } from "@/lib/print/construirTicketHtml";
 import { ahoraBogota } from "@/lib/dates";
 import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
@@ -111,36 +110,34 @@ export function FormularioCobro({ pedidoId, totalCop, ticketOffline }: Formulari
         setEnviando(false);
         return;
       }
-      // La tirilla se arma y se imprime aquí mismo: el print-bridge está
-      // en la LAN del local (CLAUDE.md §10), no necesita internet. El
-      // registro en `impresiones` no puede preceder al envío como pide
+      // La tirilla se arma y se imprime aquí mismo abriendo el diálogo del
+      // navegador (CLAUDE.md §10) -- no necesita internet. El registro en
+      // `impresiones` no puede preceder a la impresión como pide
       // CLAUDE.md §13.9 (no hay base de datos alcanzable) -- queda en el
       // payload encolado y el manejador de sincronización lo inserta con
       // el resultado real al reconectar, única adaptación posible offline.
-      const contenidoBase64 = codificarEscPos(
-        construirLineasTicket({
-          sedeNombre: ticketOffline.sedeNombre,
-          numeroCorto: ticketOffline.numeroCorto,
-          fecha: ahoraBogota(),
-          origen: ticketOffline.origen,
-          items: ticketOffline.items.map((i) => ({
-            cantidad: i.cantidad,
-            nombre: i.nombre,
-            subtotalCop: BigInt(i.subtotalCop),
-          })),
-          subtotalCop: BigInt(ticketOffline.subtotalCop),
-          totalCop,
-          pagos: pagos.map((p) => ({ metodo: p.metodo, montoCop: montoDesdePesos(Math.trunc(p.montoPesos) || 0) })),
-        }),
-      );
-      const resultadoImpresion = await enviarAlPrintBridgeDesdeNavegador(contenidoBase64);
+      const html = construirTicketHtml({
+        sedeNombre: ticketOffline.sedeNombre,
+        numeroCorto: ticketOffline.numeroCorto,
+        fecha: ahoraBogota(),
+        origen: ticketOffline.origen,
+        items: ticketOffline.items.map((i) => ({
+          cantidad: i.cantidad,
+          nombre: i.nombre,
+          subtotalCop: BigInt(i.subtotalCop),
+        })),
+        subtotalCop: BigInt(ticketOffline.subtotalCop),
+        totalCop,
+        pagos: pagos.map((p) => ({ metodo: p.metodo, montoCop: montoDesdePesos(Math.trunc(p.montoPesos) || 0) })),
+      });
+      const resultadoImpresion = solicitarImpresionTicket(html);
       await marcarPedidoLocalCobrado(pedidoId);
       await encolarOperacion({
         tipo: "cobrar_pedido",
         payload: {
           pedidoId,
           pagos: pagos.map((p) => ({ metodo: p.metodo, montoPesos: Math.trunc(p.montoPesos) || 0 })),
-          contenidoEscposBase64: contenidoBase64,
+          contenidoHtml: html,
           impresionExito: resultadoImpresion.exito,
           impresionError: resultadoImpresion.error,
         },
@@ -165,12 +162,12 @@ export function FormularioCobro({ pedidoId, totalCop, ticketOffline }: Formulari
     // offline antes del próximo refresco del caché de pedidos.
     await marcarPedidoLocalCobrado(pedidoId);
     // El cobro ya quedó confirmado -- un fallo de impresión de aquí en
-    // adelante nunca debe bloquear la navegación (CLAUDE.md §10.2). El
-    // envío ocurre desde este navegador (el PC de caja sí está en la LAN
-    // del print-bridge; el servidor de la app, en Vercel, no).
+    // adelante nunca debe bloquear la navegación (CLAUDE.md §10.2). La
+    // ventana de impresión se abre desde este navegador, con el HTML que
+    // ya armó y guardó el servidor.
     const impresion = resultado.valor.impresion;
     if (impresion) {
-      const resultadoImpresion = await enviarAlPrintBridgeDesdeNavegador(impresion.contenidoBase64);
+      const resultadoImpresion = solicitarImpresionTicket(impresion.html);
       await reportarResultadoImpresion(impresion.impresionId, resultadoImpresion.exito, resultadoImpresion.error);
     }
     router.push("/pedidos");

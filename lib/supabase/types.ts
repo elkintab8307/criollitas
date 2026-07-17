@@ -207,7 +207,8 @@ export type Database = {
       }
       impresiones: {
         Row: {
-          contenido_escpos: string
+          contenido_escpos: string | null
+          contenido_html: string | null
           creado_en: string
           enviado_en: string | null
           error: string | null
@@ -217,7 +218,8 @@ export type Database = {
           tipo: string
         }
         Insert: {
-          contenido_escpos: string
+          contenido_escpos?: string | null
+          contenido_html?: string | null
           creado_en?: string
           enviado_en?: string | null
           error?: string | null
@@ -227,7 +229,8 @@ export type Database = {
           tipo: string
         }
         Update: {
-          contenido_escpos?: string
+          contenido_escpos?: string | null
+          contenido_html?: string | null
           creado_en?: string
           enviado_en?: string | null
           error?: string | null

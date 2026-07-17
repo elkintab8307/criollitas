@@ -1,5 +1,10 @@
 # print-bridge
 
+> **Sin uso desde CLAUDE.md §10 (impresión por USB local):** la app ahora imprime
+> abriendo el diálogo nativo del navegador contra una impresora USB instalada en
+> Windows (`PRINTER_CRIOLLITAS`, puerto `USB001`) -- no necesita este servicio.
+> Se conserva por si el local llega a usar una impresora de red en el futuro.
+
 Servicio local que recibe tickets desde Criollitas OS y los envía a la impresora térmica de red del local. Corre en el PC de caja, no en la nube — ver `docs/superpowers/specs/2026-07-15-print-bridge-red-design.md` para el diseño completo.
 
 ## Uso en el PC de caja (sin instalar nada técnico)
