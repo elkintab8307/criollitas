@@ -72,24 +72,34 @@ export function construirTicketHtml(datos: DatosTicket): string {
   html, body { height: auto; }
   body {
     width: ${ANCHO_MM};
-    padding: 1mm 3mm 2mm 3mm;
-    /* Sans-serif y tamaños grandes: en térmicas de 203dpi el Courier de
-       12px salía diminuto e ilegible (reporte real del usuario). */
+    /* Sin padding superior: el papel ya sale con su propio margen físico
+       de la impresora, y el logo (ya recortado a su contenido) va pegado
+       al inicio -- antes había un espacio muerto arriba (reporte del
+       usuario). */
+    padding: 0 3mm 0 3mm;
+    /* Sans-serif, grande y TODO en negrita: en térmicas de 203dpi los
+       trazos finos salen claritos y el texto pequeño ilegible (reportes
+       reales del usuario) -- trazo grueso = impresión más oscura. */
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 17px;
+    font-weight: 700;
     line-height: 1.35;
     color: #000;
     background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .centro { text-align: center; }
-  .sep { border-top: 2px dashed #000; margin: 5px 0; }
+  .sep { border-top: 2px solid #000; margin: 5px 0; }
   .fila, .fila-item { display: flex; justify-content: space-between; gap: 8px; }
   .fila-item span:last-child { white-space: nowrap; }
-  .total { font-weight: 800; font-size: 22px; }
-  .marca { font-weight: 800; font-size: 19px; }
+  .total { font-weight: 900; font-size: 23px; }
+  .marca { font-weight: 900; font-size: 19px; }
   .suave { font-size: 14px; }
-  .logo { display: block; width: 34mm; margin: 0 auto 1mm auto; }
+  .logo { display: block; width: 32mm; margin: 0 auto 1mm auto; }
+  /* Papel extra tras el texto para poder cortar sin comerse el contenido
+     (pedido del usuario: al menos 2cm). */
+  .cola-papel { height: 20mm; }
 </style>
 </head>
 <body>
@@ -110,6 +120,7 @@ export function construirTicketHtml(datos: DatosTicket): string {
   <div class="sep"></div>
   <div class="centro">¡Gracias por tu compra!</div>
   <div class="centro suave">@criollitas_armenia</div>
+  <div class="cola-papel"></div>
 </body>
 </html>`;
 }
