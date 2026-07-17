@@ -79,9 +79,10 @@ export function construirTicketHtml(datos: DatosTicket): string {
     width: ${ANCHO_MM};
     /* Sin padding superior (el papel ya sale con margen físico propio) y
        sin padding izquierdo: la impresora corre el contenido a la derecha
-       su margen físico, y sumarle más lo cortaba por el borde derecho
-       (reporte del usuario). Solo 2mm a la derecha como colchón. */
-    padding: 0 2mm 0 0;
+       su margen físico. 7mm de colchón a la derecha: con 2mm el último
+       dígito de los valores aún se cortaba (verificado con foto real de
+       la tirilla) -- el corrimiento físico del cabezal es ~5mm. */
+    padding: 0 7mm 0 0;
     /* Sans-serif, grande y TODO en negrita: en térmicas de 203dpi los
        trazos finos salen claritos y el texto pequeño ilegible (reportes
        reales del usuario) -- trazo grueso = impresión más oscura. */
