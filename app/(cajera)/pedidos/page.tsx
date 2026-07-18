@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ColaCobro } from "@/components/caja/ColaCobro";
+import { VentasDelTurno, type PedidoCobradoVista } from "@/components/caja/VentasDelTurno";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { calcularEsperado } from "@/lib/caja/arqueo";
 import { formatearCOP } from "@/lib/money";
@@ -28,11 +29,14 @@ export default async function PedidosCajaPage() {
     .maybeSingle();
 
   let esperadoCop: bigint | null = null;
+  let cobradosDelTurno: PedidoCobradoVista[] = [];
+  let totalVentasTurnoCop = 0n;
   if (turno) {
     const { data: pagos } = await supabase
       .from("pagos")
-      .select("monto_cop, metodo")
-      .eq("turno_id", turno.id);
+      .select("monto_cop, metodo, pedido_id, creado_en")
+      .eq("turno_id", turno.id)
+      .order("creado_en", { ascending: false });
     const { data: movimientos } = await supabase
       .from("movimientos_caja")
       .select("monto_cop, tipo")
@@ -45,6 +49,43 @@ export default async function PedidosCajaPage() {
       gastosCop: (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
       ingresosExtraCop: (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop)),
     });
+
+    // Ventas del turno: los pagos del turno agrupados por pedido (fuente
+    // de verdad de "qué se cobró en ESTE turno" -- pedidos.estado no
+    // distingue turnos). Un pago mixto suma sus filas al mismo pedido.
+    const pagosPorPedido = new Map<string, { totalCop: bigint; metodos: Set<string>; creadoEn: string }>();
+    for (const pago of pagos ?? []) {
+      const actual = pagosPorPedido.get(pago.pedido_id);
+      if (actual) {
+        actual.totalCop += BigInt(pago.monto_cop);
+        actual.metodos.add(pago.metodo);
+      } else {
+        pagosPorPedido.set(pago.pedido_id, {
+          totalCop: BigInt(pago.monto_cop),
+          metodos: new Set([pago.metodo]),
+          creadoEn: pago.creado_en,
+        });
+      }
+    }
+    const pedidoIdsCobrados = [...pagosPorPedido.keys()];
+    const { data: pedidosCobradosFilas } = pedidoIdsCobrados.length
+      ? await supabase.from("pedidos").select("id, numero_corto, canal").in("id", pedidoIdsCobrados)
+      : { data: [] as { id: string; numero_corto: number; canal: string }[] };
+    const infoPedidoPorId = new Map((pedidosCobradosFilas ?? []).map((p) => [p.id, p]));
+
+    cobradosDelTurno = pedidoIdsCobrados.map((pedidoId) => {
+      const agregado = pagosPorPedido.get(pedidoId)!;
+      const info = infoPedidoPorId.get(pedidoId);
+      return {
+        pedidoId,
+        numeroCorto: info?.numero_corto ?? 0,
+        canal: info?.canal ?? "llevar",
+        totalCop: Number(agregado.totalCop),
+        metodos: [...agregado.metodos],
+        cobradoEn: agregado.creadoEn,
+      };
+    });
+    totalVentasTurnoCop = [...pagosPorPedido.values()].reduce((acc, p) => acc + p.totalCop, 0n);
   }
 
   const { data: pedidosFilas } = await supabase
@@ -89,6 +130,11 @@ export default async function PedidosCajaPage() {
       <div className="mt-6">
         <ColaCobro pedidosIniciales={pedidos} sedeId={sedeId} />
       </div>
+      {turno ? (
+        <div className="mt-8">
+          <VentasDelTurno cobrados={cobradosDelTurno} totalVentasCop={Number(totalVentasTurnoCop)} />
+        </div>
+      ) : null}
     </main>
   );
 }
