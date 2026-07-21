@@ -2,6 +2,22 @@ const CACHE_SHELL = "criollitas-shell-v2";
 const CACHE_RSC = "criollitas-rsc-v1";
 const CACHES_VIGENTES = [CACHE_SHELL, CACHE_RSC];
 
+// 5s: una wifi débil o un router sin salida a internet (LAN viva, sin
+// respuesta real) no rechaza la conexión -- la deja colgada. Sin este
+// timeout, fetch() nunca resuelve ni falla, así que el "catch" que sirve
+// el respaldo cacheado de abajo nunca se alcanza: el módulo queda
+// esperando indefinidamente en vez de caer a la copia offline en
+// segundos (bug real reportado por el usuario: "los módulos no
+// responden"). Mismo patrón que lib/offline/ping.ts (3s, ahí más corto
+// porque es un HEAD liviano; aquí hay página/datos reales de por medio).
+const TIMEOUT_FETCH_MS = 5000;
+
+function fetchConTimeout(request, opciones) {
+  const controlador = new AbortController();
+  const timeoutId = setTimeout(() => controlador.abort(), TIMEOUT_FETCH_MS);
+  return fetch(request, { ...opciones, signal: controlador.signal }).finally(() => clearTimeout(timeoutId));
+}
+
 /** Cuenta las operaciones pendientes de la cola de sincronización leyendo
  *  IndexedDB directo (Dexie no está disponible dentro del Service Worker).
  *  Los nombres ("criollitas-offline", "colaSync", estado "pendiente")
@@ -108,7 +124,7 @@ self.addEventListener("fetch", (event) => {
           // tampoco debe cachearse (dejaría esa URL rota offline). La
           // respuesta opaca tiene status 0, así que el guard de abajo la
           // excluye de la caché sin código extra.
-          const respuestaRed = await fetch(url, { credentials: "same-origin", redirect: "manual" });
+          const respuestaRed = await fetchConTimeout(url, { credentials: "same-origin", redirect: "manual" });
           if (respuestaRed.ok) cache.put(url, respuestaRed.clone());
           return respuestaRed;
         } catch (error) {
@@ -151,7 +167,7 @@ self.addEventListener("fetch", (event) => {
       caches.open(CACHE_RSC).then(async (cache) => {
         const cacheada = await cache.match(event.request);
         if (cacheada) return cacheada;
-        const respuestaRed = await fetch(event.request);
+        const respuestaRed = await fetchConTimeout(event.request);
         if (respuestaRed.ok) cache.put(event.request, respuestaRed.clone());
         return respuestaRed;
       }),
@@ -165,7 +181,7 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.open(CACHE_RSC).then(async (cache) => {
       try {
-        const respuestaRed = await fetch(event.request);
+        const respuestaRed = await fetchConTimeout(event.request);
         if (respuestaRed.ok) cache.put(event.request, respuestaRed.clone());
         return respuestaRed;
       } catch (error) {
