@@ -5,11 +5,15 @@ import { cookies } from "next/headers";
 
 import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { montoDesdePesos } from "@/lib/money";
+import { montoDesdePesos, sumar } from "@/lib/money";
 import { efectivoInicialSchema, movimientoSchema, cierreTurnoSchema } from "@/lib/validations/turno";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { ahoraBogota } from "@/lib/dates";
-import { construirTicketArqueoHtml, construirTicketAperturaCajonHtml } from "@/lib/print/construirTicketCajaHtml";
+import {
+  construirTicketArqueoHtml,
+  construirTicketAperturaCajonHtml,
+  construirTicketMovimientoHtml,
+} from "@/lib/print/construirTicketCajaHtml";
 import type { DatosImpresionCliente } from "@/app/(cajera)/cobrar/actions";
 
 async function exigirCajera(): Promise<Result<{ cajeraId: string; sedeId: string }, DomainError>> {
@@ -107,12 +111,29 @@ async function construirYRegistrarTicketArqueo(
       return null;
     }
 
-    const { cajeraNombre, sedeNombre } = await nombresCajeraYSede(supabase, cajeraId, sedeId);
+    const [{ cajeraNombre, sedeNombre }, { data: pagos }, { data: movimientos }] = await Promise.all([
+      nombresCajeraYSede(supabase, cajeraId, sedeId),
+      supabase.from("pagos").select("monto_cop, metodo").eq("turno_id", turnoId),
+      supabase.from("movimientos_caja").select("monto_cop, tipo").eq("turno_id", turnoId),
+    ]);
+    const ventasEfectivoCop = sumar(
+      ...(pagos ?? []).filter((p) => p.metodo === "efectivo").map((p) => BigInt(p.monto_cop)),
+    );
+    const salidasCop = sumar(
+      ...(movimientos ?? []).filter((m) => m.tipo === "retiro" || m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
+    );
+    const entradasExtraCop = sumar(
+      ...(movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop)),
+    );
+
     const html = construirTicketArqueoHtml({
       sedeNombre,
       cajeraNombre,
       fecha: ahoraBogota(),
       efectivoInicialCop: BigInt(turnoFila.efectivo_inicial_cop),
+      ventasEfectivoCop,
+      salidasCop,
+      entradasExtraCop,
       esperadoCop: BigInt(turnoFila.esperado_cop),
       efectivoDeclaradoCop: BigInt(turnoFila.efectivo_declarado_cop),
       diferenciaCop: BigInt(turnoFila.diferencia_cop),
@@ -128,6 +149,43 @@ async function construirYRegistrarTicketArqueo(
     return { impresionId: impresionFila.id, html };
   } catch (error) {
     console.error(`construirYRegistrarTicketArqueo falló para turno ${turnoId}:`, error);
+    return null;
+  }
+}
+
+/** Arma el comprobante de un movimiento de caja recién registrado y lo
+ *  guarda en `impresiones` -- mismo criterio defensivo que
+ *  construirYRegistrarTicketArqueo (el movimiento ya quedó guardado, un
+ *  fallo de aquí en adelante no debe aparentar que registrarMovimiento
+ *  falló). */
+async function construirYRegistrarTicketMovimiento(
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
+  turnoId: string,
+  cajeraId: string,
+  sedeId: string,
+  datosMovimiento: { tipo: "retiro" | "gasto" | "ingreso_extra"; concepto: string; montoCop: bigint },
+): Promise<DatosImpresionCliente | null> {
+  try {
+    const { cajeraNombre, sedeNombre } = await nombresCajeraYSede(supabase, cajeraId, sedeId);
+    const html = construirTicketMovimientoHtml({
+      sedeNombre,
+      cajeraNombre,
+      fecha: ahoraBogota(),
+      tipo: datosMovimiento.tipo,
+      concepto: datosMovimiento.concepto,
+      montoCop: datosMovimiento.montoCop,
+    });
+
+    const { data: impresionFila } = await supabase
+      .from("impresiones")
+      .insert({ turno_id: turnoId, tipo: "comprobante_movimiento", contenido_html: html })
+      .select("id")
+      .single();
+    if (!impresionFila) return null;
+
+    return { impresionId: impresionFila.id, html };
+  } catch (error) {
+    console.error(`construirYRegistrarTicketMovimiento falló para turno ${turnoId}:`, error);
     return null;
   }
 }
@@ -170,7 +228,9 @@ export async function abrirTurno(input: unknown): Promise<Result<{ turnoId: stri
   return ok({ turnoId: data.id });
 }
 
-export async function registrarMovimiento(input: unknown): Promise<Result<null, DomainError>> {
+export async function registrarMovimiento(
+  input: unknown,
+): Promise<Result<{ impresion: DatosImpresionCliente | null }, DomainError>> {
   const ctx = await exigirCajera();
   if (!ctx.ok) return ctx;
   const parsed = movimientoSchema.safeParse(input);
@@ -184,17 +244,24 @@ export async function registrarMovimiento(input: unknown): Promise<Result<null, 
     return err({ codigo: "VALIDACION", mensaje: "No tienes un turno abierto" });
   }
 
+  const montoCop = montoDesdePesos(parsed.data.montoPesos);
   const { error } = await supabase.from("movimientos_caja").insert({
     turno_id: turno.id,
     tipo: parsed.data.tipo,
     concepto: parsed.data.concepto,
-    monto_cop: Number(montoDesdePesos(parsed.data.montoPesos)),
+    monto_cop: Number(montoCop),
   });
   if (error) {
     return err({ codigo: "BASE_DATOS", mensaje: "No pudimos registrar el movimiento. Intenta de nuevo." });
   }
+  const impresion = await construirYRegistrarTicketMovimiento(supabase, turno.id, ctx.valor.cajeraId, ctx.valor.sedeId, {
+    tipo: parsed.data.tipo,
+    concepto: parsed.data.concepto,
+    montoCop,
+  });
   revalidatePath("/mi-turno");
-  return ok(null);
+  revalidatePath("/turno/movimientos");
+  return ok({ impresion });
 }
 
 export async function cerrarTurno(

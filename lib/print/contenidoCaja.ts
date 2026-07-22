@@ -11,7 +11,24 @@ export interface DatosArqueo {
   cajeraNombre: string;
   fecha: Date;
   efectivoInicialCop: MontoCOP;
+  /** Suma de pagos en efectivo del turno -- "cuánto dinero se hizo". */
+  ventasEfectivoCop: MontoCOP;
+  /** Suma de gastos + retiros del turno -- "cuánto dinero se sacó". */
+  salidasCop: MontoCOP;
+  /** Suma de ingresos extra del turno -- "cuánto dinero extra se ingresó". */
+  entradasExtraCop: MontoCOP;
   esperadoCop: MontoCOP;
   efectivoDeclaradoCop: MontoCOP;
   diferenciaCop: MontoCOP;
+}
+
+export type TipoMovimientoCaja = "retiro" | "gasto" | "ingreso_extra";
+
+export interface DatosMovimiento {
+  sedeNombre: string;
+  cajeraNombre: string;
+  fecha: Date;
+  tipo: TipoMovimientoCaja;
+  concepto: string;
+  montoCop: MontoCOP;
 }

@@ -8,7 +8,11 @@ import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
 import { movimientoSchema, type MovimientoInput } from "@/lib/validations/turno";
 import { registrarMovimiento } from "@/app/(cajera)/turno/actions";
+import { reportarResultadoImpresion } from "@/app/(cajera)/cobrar/actions";
+import { construirTicketMovimientoHtml } from "@/lib/print/construirTicketCajaHtml";
+import { solicitarImpresionTicket } from "@/lib/print/imprimirTicket";
 import { montoDesdePesos } from "@/lib/money";
+import { ahoraBogota } from "@/lib/dates";
 import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
 import { encolarOperacion } from "@/lib/offline/cola";
@@ -19,7 +23,12 @@ const ETIQUETA_TIPO: Record<MovimientoInput["tipo"], string> = {
   ingreso_extra: "Ingreso extra",
 };
 
-export function FormularioMovimiento() {
+interface FormularioMovimientoProps {
+  sedeNombre: string;
+  cajeraNombre: string;
+}
+
+export function FormularioMovimiento({ sedeNombre, cajeraNombre }: FormularioMovimientoProps) {
   const router = useRouter();
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const {
@@ -38,6 +47,21 @@ export function FormularioMovimiento() {
         setErrorGeneral("No tienes un turno abierto.");
         return;
       }
+      // El comprobante se arma e imprime aquí mismo (acción local del
+      // navegador, no necesita internet); el registro en `impresiones` no
+      // puede preceder a la impresión como pide CLAUDE.md §13.9 (sin
+      // conexión no hay BD alcanzable) -- viaja en el payload encolado y
+      // el manejador de sincronización lo inserta al reconectar (mismo
+      // criterio que la tirilla de arqueo offline).
+      const html = construirTicketMovimientoHtml({
+        sedeNombre,
+        cajeraNombre,
+        fecha: ahoraBogota(),
+        tipo: datos.tipo,
+        concepto: datos.concepto,
+        montoCop: montoDesdePesos(datos.montoPesos),
+      });
+      const resultadoImpresion = solicitarImpresionTicket(html);
       await encolarOperacion({
         tipo: "registrar_movimiento",
         payload: {
@@ -45,6 +69,9 @@ export function FormularioMovimiento() {
           tipo: datos.tipo,
           concepto: datos.concepto,
           montoCop: Number(montoDesdePesos(datos.montoPesos)),
+          contenidoHtml: html,
+          impresionExito: resultadoImpresion.exito,
+          impresionError: resultadoImpresion.error,
         },
         creadaEn: new Date().toISOString(),
       });
@@ -56,6 +83,13 @@ export function FormularioMovimiento() {
     if (!resultado.ok) {
       setErrorGeneral(resultado.error.mensaje);
       return;
+    }
+    // El movimiento ya quedó registrado; un fallo de impresión de aquí en
+    // adelante nunca debe bloquear el flujo (CLAUDE.md §10.2).
+    const impresion = resultado.valor.impresion;
+    if (impresion) {
+      const resultadoImpresion = solicitarImpresionTicket(impresion.html);
+      await reportarResultadoImpresion(impresion.impresionId, resultadoImpresion.exito, resultadoImpresion.error);
     }
     reset();
     router.refresh();

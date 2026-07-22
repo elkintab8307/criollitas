@@ -21,11 +21,21 @@ import { precargarRutasOffline } from "@/lib/offline/precargaRutas";
 
 interface FormularioCerrarTurnoProps {
   esperadoCop: MontoCOP;
+  ventasEfectivoCop: MontoCOP;
+  salidasCop: MontoCOP;
+  entradasExtraCop: MontoCOP;
   sedeNombre: string;
   cajeraNombre: string;
 }
 
-export function FormularioCerrarTurno({ esperadoCop, sedeNombre, cajeraNombre }: FormularioCerrarTurnoProps) {
+export function FormularioCerrarTurno({
+  esperadoCop,
+  ventasEfectivoCop,
+  salidasCop,
+  entradasExtraCop,
+  sedeNombre,
+  cajeraNombre,
+}: FormularioCerrarTurnoProps) {
   const router = useRouter();
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const {
@@ -64,6 +74,9 @@ export function FormularioCerrarTurno({ esperadoCop, sedeNombre, cajeraNombre }:
           cajeraNombre,
           fecha: ahoraBogota(),
           efectivoInicialCop,
+          ventasEfectivoCop,
+          salidasCop,
+          entradasExtraCop,
           esperadoCop,
           efectivoDeclaradoCop: BigInt(efectivoDeclaradoCop),
           diferenciaCop: calcularDiferencia(BigInt(efectivoDeclaradoCop), esperadoCop),

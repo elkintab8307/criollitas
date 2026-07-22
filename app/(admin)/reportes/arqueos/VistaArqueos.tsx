@@ -16,13 +16,33 @@ const columnasArqueos: ColumnaReporte<FilaArqueo>[] = [
   { clave: "abiertoEn", encabezado: "Apertura", render: (f) => formatearFecha(new Date(f.abiertoEn)) },
   { clave: "cerradoEn", encabezado: "Cierre", render: (f) => formatearFecha(new Date(f.cerradoEn)) },
   {
+    clave: "efectivoInicialCop",
+    encabezado: "Abrió con",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.efectivoInicialCop))}</span>,
+  },
+  {
+    clave: "ventasEfectivoCop",
+    encabezado: "Ventas",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.ventasEfectivoCop))}</span>,
+  },
+  {
+    clave: "salidasCop",
+    encabezado: "Salidas",
+    render: (f) => <span className="font-mono">-{formatearCOP(BigInt(f.salidasCop))}</span>,
+  },
+  {
+    clave: "entradasExtraCop",
+    encabezado: "Entradas extra",
+    render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.entradasExtraCop))}</span>,
+  },
+  {
     clave: "esperadoCop",
-    encabezado: "Esperado",
+    encabezado: "Total en caja",
     render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.esperadoCop))}</span>,
   },
   {
     clave: "declaradoCop",
-    encabezado: "Declarado",
+    encabezado: "Contado",
     render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.declaradoCop))}</span>,
   },
   {
@@ -93,8 +113,12 @@ export function VistaArqueos() {
               { clave: "cajeraNombre", encabezado: "Cajera" },
               { clave: "abiertoEn", encabezado: "Apertura" },
               { clave: "cerradoEn", encabezado: "Cierre" },
-              { clave: "esperadoCop", encabezado: "Esperado (COP)" },
-              { clave: "declaradoCop", encabezado: "Declarado (COP)" },
+              { clave: "efectivoInicialCop", encabezado: "Abrió con (COP)" },
+              { clave: "ventasEfectivoCop", encabezado: "Ventas (COP)" },
+              { clave: "salidasCop", encabezado: "Salidas (COP)" },
+              { clave: "entradasExtraCop", encabezado: "Entradas extra (COP)" },
+              { clave: "esperadoCop", encabezado: "Total en caja (COP)" },
+              { clave: "declaradoCop", encabezado: "Contado (COP)" },
               { clave: "diferenciaCop", encabezado: "Diferencia (COP)" },
             ]}
             nombreArchivo="historial-arqueos"

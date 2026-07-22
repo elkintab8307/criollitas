@@ -38,6 +38,19 @@ export function RegistradorManejadoresTurno() {
         monto_cop: payload.montoCop as number,
       });
       if (error) return { ok: false, mensaje: error.message };
+      // El comprobante (si se pudo armar offline -- ver
+      // FormularioMovimiento.tsx) ya se imprimió al registrar el
+      // movimiento; aquí solo se persiste el registro en `impresiones`.
+      if (payload.contenidoHtml) {
+        await supabase.from("impresiones").insert({
+          turno_id: payload.turnoId as string,
+          tipo: "comprobante_movimiento",
+          contenido_html: payload.contenidoHtml as string,
+          enviado_en: new Date().toISOString(),
+          exito: payload.impresionExito as boolean,
+          error: (payload.impresionError as string | null) ?? null,
+        });
+      }
       return { ok: true };
     });
 

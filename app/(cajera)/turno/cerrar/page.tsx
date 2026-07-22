@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { FormularioCerrarTurno } from "@/components/caja/FormularioCerrarTurno";
 import { BotonAbrirCaja } from "@/components/caja/BotonAbrirCaja";
 import { calcularEsperado } from "@/lib/caja/arqueo";
+import { sumar } from "@/lib/money";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 
 export default async function CerrarTurnoPage() {
@@ -41,13 +42,21 @@ export default async function CerrarTurnoPage() {
     .select("monto_cop, tipo")
     .eq("turno_id", turno.id);
 
+  const pagosEfectivoCop = (pagos ?? []).filter((p) => p.metodo === "efectivo").map((p) => BigInt(p.monto_cop));
+  const retirosCop = (movimientos ?? []).filter((m) => m.tipo === "retiro").map((m) => BigInt(m.monto_cop));
+  const gastosCop = (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop));
+  const ingresosExtraCop = (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop));
+
   const esperadoCop = calcularEsperado({
     efectivoInicialCop: BigInt(turno.efectivo_inicial_cop),
-    pagosEfectivoCop: (pagos ?? []).filter((p) => p.metodo === "efectivo").map((p) => BigInt(p.monto_cop)),
-    retirosCop: (movimientos ?? []).filter((m) => m.tipo === "retiro").map((m) => BigInt(m.monto_cop)),
-    gastosCop: (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
-    ingresosExtraCop: (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop)),
+    pagosEfectivoCop,
+    retirosCop,
+    gastosCop,
+    ingresosExtraCop,
   });
+  const ventasEfectivoCop = sumar(...pagosEfectivoCop);
+  const salidasCop = sumar(...retirosCop, ...gastosCop);
+  const entradasExtraCop = sumar(...ingresosExtraCop);
 
   return (
     <main className="p-8">
@@ -56,7 +65,14 @@ export default async function CerrarTurnoPage() {
       <div className="mb-6">
         <BotonAbrirCaja sedeNombre={sedeNombre} cajeraNombre={cajeraNombre} />
       </div>
-      <FormularioCerrarTurno esperadoCop={esperadoCop} sedeNombre={sedeNombre} cajeraNombre={cajeraNombre} />
+      <FormularioCerrarTurno
+        esperadoCop={esperadoCop}
+        ventasEfectivoCop={ventasEfectivoCop}
+        salidasCop={salidasCop}
+        entradasExtraCop={entradasExtraCop}
+        sedeNombre={sedeNombre}
+        cajeraNombre={cajeraNombre}
+      />
     </main>
   );
 }

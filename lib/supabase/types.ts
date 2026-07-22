@@ -881,8 +881,11 @@ export type Database = {
           declarado_cop: number
           diferencia_cop: number
           efectivo_inicial_cop: number
+          entradas_extra_cop: number
           esperado_cop: number
+          salidas_cop: number
           turno_id: string
+          ventas_efectivo_cop: number
         }[]
       }
       fn_reporte_canales: {

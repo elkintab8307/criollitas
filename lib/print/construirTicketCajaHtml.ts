@@ -2,7 +2,13 @@ import { formatearCOP } from "@/lib/money";
 import { formatearFecha } from "@/lib/dates";
 import { LOGO_TICKET_DATA_URI } from "@/lib/print/logoTicket";
 import { estilosTicketBase } from "@/lib/print/estilosTicket";
-import type { DatosAperturaCajon, DatosArqueo } from "@/lib/print/contenidoCaja";
+import type { DatosAperturaCajon, DatosArqueo, DatosMovimiento } from "@/lib/print/contenidoCaja";
+
+const ETIQUETA_TIPO_MOVIMIENTO: Record<DatosMovimiento["tipo"], string> = {
+  retiro: "Retiro",
+  gasto: "Gasto",
+  ingreso_extra: "Ingreso extra",
+};
 
 function escaparHtml(texto: string): string {
   return texto
@@ -71,11 +77,42 @@ export function construirTicketArqueoHtml(datos: DatosArqueo): string {
   <div class="suave">${formatearFecha(datos.fecha)}</div>
   <div class="suave">Cajera: ${escaparHtml(datos.cajeraNombre)}</div>
   <div class="sep"></div>
-  <div class="fila"><span>Efectivo inicial</span><span>${formatearCOP(datos.efectivoInicialCop)}</span></div>
-  <div class="fila"><span>Efectivo esperado</span><span>${formatearCOP(datos.esperadoCop)}</span></div>
-  <div class="fila total"><span>Efectivo contado</span><span>${formatearCOP(datos.efectivoDeclaradoCop)}</span></div>
+  <div class="fila"><span>Dinero con que se abrió</span><span>${formatearCOP(datos.efectivoInicialCop)}</span></div>
+  <div class="fila"><span>Ventas (efectivo)</span><span>${formatearCOP(datos.ventasEfectivoCop)}</span></div>
+  <div class="fila"><span>Salidas (gastos/retiros)</span><span>-${formatearCOP(datos.salidasCop)}</span></div>
+  <div class="fila"><span>Entradas extra</span><span>${formatearCOP(datos.entradasExtraCop)}</span></div>
   <div class="sep"></div>
+  <div class="fila total"><span>Total en caja</span><span>${formatearCOP(datos.esperadoCop)}</span></div>
+  <div class="sep"></div>
+  <div class="fila"><span>Efectivo contado</span><span>${formatearCOP(datos.efectivoDeclaradoCop)}</span></div>
   <div class="fila"><span>${etiquetaDiferencia(datos.diferenciaCop)}</span><span>${formatearCOP(datos.diferenciaCop)}</span></div>
+  <div class="cola-papel"></div>
+</body>
+</html>`;
+}
+
+/** Comprobante de un movimiento de caja (retiro, gasto o ingreso extra),
+ *  impreso al momento de registrarlo (pedido del usuario) -- mismo diseño
+ *  visual que la tirilla de cobro (marca, sede, separadores). */
+export function construirTicketMovimientoHtml(datos: DatosMovimiento): string {
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>${ETIQUETA_TIPO_MOVIMIENTO[datos.tipo]}</title>
+<style>${estilosTicketBase()}</style>
+</head>
+<body>
+  <img class="logo" src="${LOGO_TICKET_DATA_URI}" alt="" />
+  <div class="centro marca">Criollitas - Arepas Rellenas</div>
+  <div class="centro suave">${escaparHtml(datos.sedeNombre)}</div>
+  <div class="sep"></div>
+  <div class="centro">Comprobante de ${ETIQUETA_TIPO_MOVIMIENTO[datos.tipo]}</div>
+  <div class="suave">${formatearFecha(datos.fecha)}</div>
+  <div class="suave">Cajera: ${escaparHtml(datos.cajeraNombre)}</div>
+  <div class="sep"></div>
+  <div>${escaparHtml(datos.concepto)}</div>
+  <div class="fila total"><span>Monto</span><span>${formatearCOP(datos.montoCop)}</span></div>
   <div class="cola-papel"></div>
 </body>
 </html>`;
