@@ -37,16 +37,22 @@ export default async function MiTurnoPage() {
     .select("monto_cop, tipo")
     .eq("turno_id", turno.id);
 
+  const retirosCop = (movimientos ?? []).filter((m) => m.tipo === "retiro").map((m) => BigInt(m.monto_cop));
+  const gastosCop = (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop));
+  const ingresosExtraCop = (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop));
+
   const esperadoCop = calcularEsperado({
     efectivoInicialCop: BigInt(turno.efectivo_inicial_cop),
     pagosEfectivoCop: (pagos ?? []).filter((p) => p.metodo === "efectivo").map((p) => BigInt(p.monto_cop)),
-    retirosCop: (movimientos ?? []).filter((m) => m.tipo === "retiro").map((m) => BigInt(m.monto_cop)),
-    gastosCop: (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
-    ingresosExtraCop: (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop)),
+    retirosCop,
+    gastosCop,
+    ingresosExtraCop,
   });
   const ventasOtroMedioCop = sumar(
     ...(pagos ?? []).filter((p) => p.metodo !== "efectivo").map((p) => BigInt(p.monto_cop)),
   );
+  const salidasCop = sumar(...retirosCop, ...gastosCop);
+  const entradasExtraCop = sumar(...ingresosExtraCop);
 
   return (
     <main className="p-8">
@@ -64,6 +70,20 @@ export default async function MiTurnoPage() {
       </p>
       <div className="mt-2 max-w-xs rounded-clay-md bg-surface-sunken p-3">
         <DesgloseMetodosPago desglose={desglosePagosOtroMedio} />
+      </div>
+      <div className="mt-4 flex max-w-xs flex-col gap-1 rounded-clay-md bg-surface-sunken p-3">
+        <p className="text-sm text-brand-chocolate/70">Movimientos de caja del turno:</p>
+        <p className="flex justify-between text-sm text-brand-chocolate/70">
+          <span>Salidas (retiros y gastos)</span>
+          <span className="font-mono font-semibold text-brand-tomate-2">-{formatearCOP(salidasCop)}</span>
+        </p>
+        <p className="flex justify-between text-sm text-brand-chocolate/70">
+          <span>Entradas extra</span>
+          <span className="font-mono font-semibold text-brand-verde-2">{formatearCOP(entradasExtraCop)}</span>
+        </p>
+        <Link href="/turno/movimientos" className="mt-1 text-xs text-brand-chocolate/60 underline">
+          Ver detalle de movimientos
+        </Link>
       </div>
       <div className="mt-6 flex gap-3">
         <Link href="/pedidos">
