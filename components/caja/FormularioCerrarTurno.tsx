@@ -7,7 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
 import { formatearCOP, montoDesdePesos, type MontoCOP } from "@/lib/money";
-import { calcularDiferencia } from "@/lib/caja/arqueo";
+import { calcularDiferencia, type DesglosePago, type ProductoVendido } from "@/lib/caja/arqueo";
+import type { MovimientoArqueo } from "@/lib/print/contenidoCaja";
+import { DesgloseMetodosPago } from "@/components/caja/DesgloseMetodosPago";
 import { cierreTurnoSchema, type CierreTurnoInput } from "@/lib/validations/turno";
 import { cerrarTurno } from "@/app/(cajera)/turno/actions";
 import { reportarResultadoImpresion } from "@/app/(cajera)/cobrar/actions";
@@ -29,8 +31,11 @@ interface FormularioCerrarTurnoProps {
   esperadoCop: MontoCOP;
   ventasEfectivoCop: MontoCOP;
   ventasOtroMedioCop: MontoCOP;
+  desglosePagosOtroMedio: DesglosePago[];
   salidasCop: MontoCOP;
   entradasExtraCop: MontoCOP;
+  productosVendidos: ProductoVendido[];
+  movimientos: MovimientoArqueo[];
   sedeNombre: string;
   cajeraNombre: string;
 }
@@ -39,8 +44,11 @@ export function FormularioCerrarTurno({
   esperadoCop,
   ventasEfectivoCop,
   ventasOtroMedioCop,
+  desglosePagosOtroMedio,
   salidasCop,
   entradasExtraCop,
+  productosVendidos,
+  movimientos,
   sedeNombre,
   cajeraNombre,
 }: FormularioCerrarTurnoProps) {
@@ -81,11 +89,14 @@ export function FormularioCerrarTurno({
         efectivoInicialCop,
         ventasEfectivoCop,
         ventasOtroMedioCop,
+        desglosePagosOtroMedio,
         salidasCop,
         entradasExtraCop,
         esperadoCop,
         efectivoDeclaradoCop: BigInt(efectivoDeclaradoCop),
         diferenciaCop: calcularDiferencia(BigInt(efectivoDeclaradoCop), esperadoCop),
+        productosVendidos,
+        movimientos,
       });
       const resultadoImpresion = solicitarImpresionTicket(contenidoHtml);
       impresionExito = resultadoImpresion.exito;
@@ -163,6 +174,7 @@ export function FormularioCerrarTurno({
           Ventas por otro medio (Nequi, datáfono, etc.):{" "}
           <span className="font-mono font-semibold">{formatearCOP(ventasOtroMedioCop)}</span>
         </p>
+        <DesgloseMetodosPago desglose={desglosePagosOtroMedio} />
         <p className="text-xs text-brand-chocolate/60">
           El cuadre de caja es solo con el efectivo -- los otros medios son pagos virtuales.
         </p>

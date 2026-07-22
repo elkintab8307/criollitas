@@ -38,11 +38,24 @@ const datosArqueoBase: DatosArqueo = {
   efectivoInicialCop: 10000000n,
   ventasEfectivoCop: 5500000n,
   ventasOtroMedioCop: 2000000n,
+  desglosePagosOtroMedio: [
+    { metodo: "nequi", montoCop: 1500000n },
+    { metodo: "datafono", montoCop: 500000n },
+  ],
   salidasCop: 800000n,
   entradasExtraCop: 300000n,
   esperadoCop: 15000000n,
   efectivoDeclaradoCop: 14800000n,
   diferenciaCop: -200000n,
+  productosVendidos: [
+    { nombre: "Arepa de Choclo", cantidad: 5, totalCop: 4000000n },
+    { nombre: "Gaseosa", cantidad: 3, totalCop: 900000n },
+  ],
+  movimientos: [
+    { tipo: "gasto", concepto: "Compra de bolsas", montoCop: 500000n },
+    { tipo: "retiro", concepto: "Retiro para banco", montoCop: 300000n },
+    { tipo: "ingreso_extra", concepto: "Vuelto de caja menor", montoCop: 300000n },
+  ],
 };
 
 describe("construirTicketArqueoHtml", () => {
@@ -81,10 +94,10 @@ describe("construirTicketArqueoHtml", () => {
   it("muestra las ventas por otro medio de pago aparte, sin sumarlas al cuadre de efectivo", () => {
     const html = construirTicketArqueoHtml(datosArqueoBase);
     expect(html).toContain("$ 20.000");
-    expect(html).toContain("Ventas por otro medio");
+    expect(html).toContain("Total por otro medio");
     // El total en caja (solo efectivo) debe seguir siendo $150.000, no
     // $170.000 -- los pagos virtuales nunca entran al cuadre físico.
-    const posOtroMedio = html.indexOf("Ventas por otro medio");
+    const posOtroMedio = html.indexOf("Total por otro medio");
     const posTotal = html.indexOf("Total en caja");
     expect(posOtroMedio).toBeGreaterThan(-1);
     expect(posTotal).toBeGreaterThan(-1);
@@ -118,6 +131,48 @@ describe("construirTicketArqueoHtml", () => {
   it("usa el mismo ancho imprimible que la tirilla de cobro", () => {
     const html = construirTicketArqueoHtml(datosArqueoBase);
     expect(html).toContain("72mm");
+  });
+
+  it("desglosa las ventas por otro medio de pago, método por método", () => {
+    const html = construirTicketArqueoHtml(datosArqueoBase);
+    expect(html).toContain("Nequi");
+    expect(html).toContain("$ 15.000");
+    expect(html).toContain("Datáfono");
+    expect(html).toContain("$ 5.000");
+  });
+
+  it("lista los productos vendidos en el turno con cantidad y valor total", () => {
+    const html = construirTicketArqueoHtml(datosArqueoBase);
+    expect(html).toContain("Productos vendidos");
+    expect(html).toContain("Arepa de Choclo");
+    expect(html).toContain("5");
+    expect(html).toContain("$ 40.000");
+    expect(html).toContain("Gaseosa");
+    expect(html).toContain("$ 9.000");
+  });
+
+  it("lista los movimientos de caja del turno con su concepto", () => {
+    const html = construirTicketArqueoHtml(datosArqueoBase);
+    expect(html).toContain("Movimientos de caja");
+    expect(html).toContain("Compra de bolsas");
+    expect(html).toContain("Retiro para banco");
+    expect(html).toContain("Vuelto de caja menor");
+  });
+
+  it("no revienta con productos vendidos o movimientos vacíos", () => {
+    const html = construirTicketArqueoHtml({ ...datosArqueoBase, productosVendidos: [], movimientos: [] });
+    expect(html).toContain("Total en caja");
+  });
+
+  it("escapa nombres de producto y conceptos de movimiento con caracteres HTML especiales", () => {
+    const html = construirTicketArqueoHtml({
+      ...datosArqueoBase,
+      productosVendidos: [{ nombre: '<script>alert("x")</script>', cantidad: 1, totalCop: 100000n }],
+      movimientos: [{ tipo: "gasto", concepto: "<b>hack</b> & Cía", montoCop: 100000n }],
+    });
+    expect(html).not.toContain("<script>alert");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&amp; Cía");
   });
 });
 

@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatearCOP,
-  montoDesdePesos,
-  multiplicar,
-  parsearCOP,
-  pesosDesdeMonto,
-  sumar,
-} from "@/lib/money";
+import { formatearCOP, montoDesdePesos, multiplicar, parsearCOP, pesosDesdeMonto, sumar } from "@/lib/money";
 
 describe("money", () => {
   it("crea montos desde pesos enteros", () => {

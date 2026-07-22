@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { formatearCOP, sumar } from "@/lib/money";
-import { calcularEsperado } from "@/lib/caja/arqueo";
+import { calcularEsperado, desglosarPagosPorMetodo } from "@/lib/caja/arqueo";
+import { DesgloseMetodosPago } from "@/components/caja/DesgloseMetodosPago";
 
 export default async function MiTurnoPage() {
   const supabase = await createServerSupabase();
@@ -28,6 +29,9 @@ export default async function MiTurnoPage() {
     .from("pagos")
     .select("monto_cop, metodo")
     .eq("turno_id", turno.id);
+  const desglosePagosOtroMedio = desglosarPagosPorMetodo(
+    (pagos ?? []).map((p) => ({ metodo: p.metodo, montoCop: BigInt(p.monto_cop) })),
+  );
   const { data: movimientos } = await supabase
     .from("movimientos_caja")
     .select("monto_cop, tipo")
@@ -58,6 +62,9 @@ export default async function MiTurnoPage() {
         <span className="font-mono font-semibold">{formatearCOP(ventasOtroMedioCop)}</span> — no afectan el cuadre
         de caja.
       </p>
+      <div className="mt-2 max-w-xs rounded-clay-md bg-surface-sunken p-3">
+        <DesgloseMetodosPago desglose={desglosePagosOtroMedio} />
+      </div>
       <div className="mt-6 flex gap-3">
         <Link href="/pedidos">
           <ClayButton type="button" variant="primary">Cobrar pedidos</ClayButton>

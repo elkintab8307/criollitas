@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { montoDesdePesos, sumar } from "@/lib/money";
+import { agruparProductosVendidos, desglosarPagosPorMetodo } from "@/lib/caja/arqueo";
 import { efectivoInicialSchema, movimientoSchema, cierreTurnoSchema } from "@/lib/validations/turno";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { ahoraBogota } from "@/lib/dates";
@@ -113,8 +114,8 @@ async function construirYRegistrarTicketArqueo(
 
     const [{ cajeraNombre, sedeNombre }, { data: pagos }, { data: movimientos }] = await Promise.all([
       nombresCajeraYSede(supabase, cajeraId, sedeId),
-      supabase.from("pagos").select("monto_cop, metodo").eq("turno_id", turnoId),
-      supabase.from("movimientos_caja").select("monto_cop, tipo").eq("turno_id", turnoId),
+      supabase.from("pagos").select("monto_cop, metodo, pedido_id").eq("turno_id", turnoId),
+      supabase.from("movimientos_caja").select("monto_cop, tipo, concepto").eq("turno_id", turnoId),
     ]);
     const ventasEfectivoCop = sumar(
       ...(pagos ?? []).filter((p) => p.metodo === "efectivo").map((p) => BigInt(p.monto_cop)),
@@ -122,11 +123,43 @@ async function construirYRegistrarTicketArqueo(
     const ventasOtroMedioCop = sumar(
       ...(pagos ?? []).filter((p) => p.metodo !== "efectivo").map((p) => BigInt(p.monto_cop)),
     );
+    const desglosePagosOtroMedio = desglosarPagosPorMetodo(
+      (pagos ?? []).map((p) => ({ metodo: p.metodo, montoCop: BigInt(p.monto_cop) })),
+    );
     const salidasCop = sumar(
       ...(movimientos ?? []).filter((m) => m.tipo === "retiro" || m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
     );
     const entradasExtraCop = sumar(
       ...(movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop)),
+    );
+    const movimientosDetalle = (movimientos ?? []).map((m) => ({
+      tipo: m.tipo,
+      concepto: m.concepto,
+      montoCop: BigInt(m.monto_cop),
+    }));
+
+    // Productos vendidos en el turno: un mismo pedido puede aparecer varias
+    // veces en `pagos` (pago mixto), de ahí el Set para no duplicar sus ítems.
+    const pedidoIdsCobrados = [...new Set((pagos ?? []).map((p) => p.pedido_id))];
+    const { data: itemsVendidos } =
+      pedidoIdsCobrados.length > 0
+        ? await supabase
+            .from("pedido_items")
+            .select("producto_id, cantidad, subtotal_cop")
+            .in("pedido_id", pedidoIdsCobrados)
+        : { data: [] as { producto_id: string; cantidad: number; subtotal_cop: number }[] };
+    const productoIdsVendidos = [...new Set((itemsVendidos ?? []).map((i) => i.producto_id))];
+    const { data: productosFilas } = productoIdsVendidos.length
+      ? await supabase.from("productos").select("id, nombre").in("id", productoIdsVendidos)
+      : { data: [] as { id: string; nombre: string }[] };
+    const nombrePorProductoId = new Map((productosFilas ?? []).map((p) => [p.id, p.nombre]));
+    const productosVendidos = agruparProductosVendidos(
+      (itemsVendidos ?? []).map((item) => ({
+        productoId: item.producto_id,
+        nombre: nombrePorProductoId.get(item.producto_id) ?? "Producto",
+        cantidad: item.cantidad,
+        subtotalCop: BigInt(item.subtotal_cop),
+      })),
     );
 
     const html = construirTicketArqueoHtml({
@@ -136,11 +169,14 @@ async function construirYRegistrarTicketArqueo(
       efectivoInicialCop: BigInt(turnoFila.efectivo_inicial_cop),
       ventasEfectivoCop,
       ventasOtroMedioCop,
+      desglosePagosOtroMedio,
       salidasCop,
       entradasExtraCop,
       esperadoCop: BigInt(turnoFila.esperado_cop),
       efectivoDeclaradoCop: BigInt(turnoFila.efectivo_declarado_cop),
       diferenciaCop: BigInt(turnoFila.diferencia_cop),
+      productosVendidos,
+      movimientos: movimientosDetalle,
     });
 
     const { data: impresionFila } = await supabase

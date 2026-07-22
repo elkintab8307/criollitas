@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { calcularEsperado, calcularDiferencia } from "@/lib/caja/arqueo";
+import {
+  agruparProductosVendidos,
+  calcularEsperado,
+  calcularDiferencia,
+  desglosarPagosPorMetodo,
+} from "@/lib/caja/arqueo";
 
 describe("calcularEsperado", () => {
   it("solo efectivo inicial, sin movimientos", () => {
@@ -72,5 +77,60 @@ describe("calcularDiferencia", () => {
   });
   it("negativa cuando falta efectivo", () => {
     expect(calcularDiferencia(95000n, 100000n)).toBe(-5000n);
+  });
+});
+
+describe("desglosarPagosPorMetodo", () => {
+  it("suma los montos de cada método distinto de efectivo", () => {
+    expect(
+      desglosarPagosPorMetodo([
+        { metodo: "nequi", montoCop: 500000n },
+        { metodo: "datafono", montoCop: 300000n },
+        { metodo: "nequi", montoCop: 200000n },
+      ]),
+    ).toEqual([
+      { metodo: "nequi", montoCop: 700000n },
+      { metodo: "datafono", montoCop: 300000n },
+    ]);
+  });
+
+  it("excluye el efectivo -- ese cuadre ya se muestra aparte", () => {
+    expect(
+      desglosarPagosPorMetodo([
+        { metodo: "efectivo", montoCop: 1000000n },
+        { metodo: "nequi", montoCop: 500000n },
+      ]),
+    ).toEqual([{ metodo: "nequi", montoCop: 500000n }]);
+  });
+
+  it("devuelve vacío sin pagos por otro medio", () => {
+    expect(desglosarPagosPorMetodo([{ metodo: "efectivo", montoCop: 1000000n }])).toEqual([]);
+  });
+});
+
+describe("agruparProductosVendidos", () => {
+  it("suma cantidad y total de un mismo producto en distintos pedidos", () => {
+    expect(
+      agruparProductosVendidos([
+        { productoId: "p1", nombre: "Arepa de Choclo", cantidad: 2, subtotalCop: 1600000n },
+        { productoId: "p2", nombre: "Gaseosa", cantidad: 1, subtotalCop: 300000n },
+        { productoId: "p1", nombre: "Arepa de Choclo", cantidad: 3, subtotalCop: 2400000n },
+      ]),
+    ).toEqual([
+      { nombre: "Arepa de Choclo", cantidad: 5, totalCop: 4000000n },
+      { nombre: "Gaseosa", cantidad: 1, totalCop: 300000n },
+    ]);
+  });
+
+  it("ordena de mayor a menor ingreso", () => {
+    const resultado = agruparProductosVendidos([
+      { productoId: "p1", nombre: "Barato", cantidad: 1, subtotalCop: 100000n },
+      { productoId: "p2", nombre: "Caro", cantidad: 1, subtotalCop: 900000n },
+    ]);
+    expect(resultado.map((r) => r.nombre)).toEqual(["Caro", "Barato"]);
+  });
+
+  it("devuelve vacío sin ítems", () => {
+    expect(agruparProductosVendidos([])).toEqual([]);
   });
 });

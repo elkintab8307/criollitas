@@ -10,6 +10,18 @@ const ETIQUETA_TIPO_MOVIMIENTO: Record<DatosMovimiento["tipo"], string> = {
   ingreso_extra: "Ingreso extra",
 };
 
+// Mismas etiquetas que ETIQUETA_METODO en FormularioCobro.tsx/VentasDelTurno.tsx
+// -- duplicado por método, no por descuido (mismo criterio ya usado 3 veces
+// en el proyecto para esta tabla pequeña y estable).
+const ETIQUETA_METODO_ARQUEO: Record<string, string> = {
+  efectivo: "Efectivo",
+  nequi: "Nequi",
+  daviplata: "Daviplata",
+  bancolombia_qr: "Bancolombia QR",
+  datafono: "Datáfono",
+  otro: "Otro",
+};
+
 function escaparHtml(texto: string): string {
   return texto
     .replace(/&/g, "&amp;")
@@ -88,7 +100,37 @@ export function construirTicketArqueoHtml(datos: DatosArqueo): string {
   <div class="fila"><span>${etiquetaDiferencia(datos.diferenciaCop)}</span><span>${formatearCOP(datos.diferenciaCop)}</span></div>
   <div class="sep"></div>
   <div class="centro suave">Pagos virtuales (no cuentan para el cuadre)</div>
-  <div class="fila"><span>Ventas por otro medio</span><span>${formatearCOP(datos.ventasOtroMedioCop)}</span></div>
+  <div class="fila"><span>Total por otro medio</span><span>${formatearCOP(datos.ventasOtroMedioCop)}</span></div>
+  ${datos.desglosePagosOtroMedio
+    .map(
+      (d) =>
+        `<div class="fila"><span>${escaparHtml(ETIQUETA_METODO_ARQUEO[d.metodo] ?? d.metodo)}</span><span>${formatearCOP(d.montoCop)}</span></div>`,
+    )
+    .join("\n  ")}
+  <div class="sep"></div>
+  <div class="centro suave">Productos vendidos</div>
+  ${
+    datos.productosVendidos.length === 0
+      ? '<div class="centro suave">Sin ventas de productos</div>'
+      : datos.productosVendidos
+          .map(
+            (p) =>
+              `<div class="fila-item"><span>${p.cantidad}x ${escaparHtml(p.nombre)}</span><span>${formatearCOP(p.totalCop)}</span></div>`,
+          )
+          .join("\n  ")
+  }
+  <div class="sep"></div>
+  <div class="centro suave">Movimientos de caja</div>
+  ${
+    datos.movimientos.length === 0
+      ? '<div class="centro suave">Sin movimientos en este turno</div>'
+      : datos.movimientos
+          .map(
+            (m) =>
+              `<div class="fila-item"><span>${ETIQUETA_TIPO_MOVIMIENTO[m.tipo]}: ${escaparHtml(m.concepto)}</span><span>${m.tipo === "ingreso_extra" ? "" : "-"}${formatearCOP(m.montoCop)}</span></div>`,
+          )
+          .join("\n  ")
+  }
   <div class="cola-papel"></div>
 </body>
 </html>`;
