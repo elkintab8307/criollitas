@@ -48,6 +48,38 @@ export function RegistradorManejadoresTurno() {
         p_efectivo_declarado_cop: payload.efectivoDeclaradoCop as number,
       });
       if (error) return { ok: false, mensaje: error.message };
+      // La tirilla de arqueo (si se pudo armar offline -- ver
+      // FormularioCerrarTurno.tsx) ya se imprimió en el momento del cierre;
+      // aquí solo se persiste el registro en `impresiones`, igual que
+      // sincronizarCobroOffline hace con la tirilla de cobro.
+      if (payload.contenidoHtml) {
+        await supabase.from("impresiones").insert({
+          turno_id: payload.turnoId as string,
+          tipo: "tirilla_arqueo",
+          contenido_html: payload.contenidoHtml as string,
+          enviado_en: new Date().toISOString(),
+          exito: payload.impresionExito as boolean,
+          error: (payload.impresionError as string | null) ?? null,
+        });
+      }
+      return { ok: true };
+    });
+
+    // Apertura del cajón de dinero para contar efectivo (botón "Abrir
+    // caja" en /turno/cerrar): la impresión ya ocurrió al momento del
+    // clic (es una acción 100% local, no necesita internet); esto solo
+    // persiste el registro de auditoría al reconectar.
+    registrarManejador("registrar_apertura_cajon", async (payload) => {
+      const supabase = createClient();
+      const { error } = await supabase.from("impresiones").insert({
+        turno_id: payload.turnoId as string,
+        tipo: "apertura_cajon",
+        contenido_html: payload.contenidoHtml as string,
+        enviado_en: new Date().toISOString(),
+        exito: payload.exito as boolean,
+        error: (payload.error as string | null) ?? null,
+      });
+      if (error) return { ok: false, mensaje: error.message };
       return { ok: true };
     });
   }, []);

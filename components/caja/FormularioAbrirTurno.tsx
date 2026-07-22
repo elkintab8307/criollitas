@@ -40,17 +40,18 @@ export function FormularioAbrirTurno() {
         return;
       }
       const turnoId = crypto.randomUUID();
+      const efectivoInicialCop = Number(montoDesdePesos(datos.efectivoInicialPesos));
       await encolarOperacion({
         tipo: "abrir_turno",
         payload: {
           turnoId,
           sedeId: sesion.sedeId,
           cajeraId: sesion.usuarioId,
-          efectivoInicialCop: Number(montoDesdePesos(datos.efectivoInicialPesos)),
+          efectivoInicialCop,
         },
         creadaEn: new Date().toISOString(),
       });
-      useTurnoOfflineStore.getState().abrir({ turnoId });
+      useTurnoOfflineStore.getState().abrir({ turnoId, efectivoInicialCop });
       // Navegación completa (no router.push): mismo motivo que
       // FormularioCerrarTurno.tsx -- router.push hace un fetch "suave" con
       // encabezados RSC que el Service Worker no reconoce como la misma
@@ -65,7 +66,10 @@ export function FormularioAbrirTurno() {
       setErrorGeneral(resultado.error.mensaje);
       return;
     }
-    useTurnoOfflineStore.getState().abrir({ turnoId: resultado.valor.turnoId });
+    useTurnoOfflineStore.getState().abrir({
+      turnoId: resultado.valor.turnoId,
+      efectivoInicialCop: Number(montoDesdePesos(datos.efectivoInicialPesos)),
+    });
     // Tercer momento seguro para precargar (lib/offline/precargaRutas.ts):
     // recién ahora existe un turno abierto, así que /turno/movimientos,
     // /turno/cerrar, /pedidos y /pedido/nuevo (gateadas por CLAUDE.md

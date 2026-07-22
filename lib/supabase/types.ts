@@ -214,8 +214,9 @@ export type Database = {
           error: string | null
           exito: boolean | null
           id: string
-          pedido_id: string
+          pedido_id: string | null
           tipo: string
+          turno_id: string | null
         }
         Insert: {
           contenido_escpos?: string | null
@@ -225,8 +226,9 @@ export type Database = {
           error?: string | null
           exito?: boolean | null
           id?: string
-          pedido_id: string
+          pedido_id?: string | null
           tipo: string
+          turno_id?: string | null
         }
         Update: {
           contenido_escpos?: string | null
@@ -236,8 +238,9 @@ export type Database = {
           error?: string | null
           exito?: boolean | null
           id?: string
-          pedido_id?: string
+          pedido_id?: string | null
           tipo?: string
+          turno_id?: string | null
         }
         Relationships: [
           {
@@ -245,6 +248,13 @@ export type Database = {
             columns: ["pedido_id"]
             isOneToOne: false
             referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impresiones_turno_id_fkey"
+            columns: ["turno_id"]
+            isOneToOne: false
+            referencedRelation: "turnos_caja"
             referencedColumns: ["id"]
           },
         ]

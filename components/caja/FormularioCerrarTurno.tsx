@@ -7,8 +7,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { ClayInput } from "@/components/ui/ClayInput";
 import { formatearCOP, montoDesdePesos, type MontoCOP } from "@/lib/money";
+import { calcularDiferencia } from "@/lib/caja/arqueo";
 import { cierreTurnoSchema, type CierreTurnoInput } from "@/lib/validations/turno";
 import { cerrarTurno } from "@/app/(cajera)/turno/actions";
+import { reportarResultadoImpresion } from "@/app/(cajera)/cobrar/actions";
+import { construirTicketArqueoHtml } from "@/lib/print/construirTicketCajaHtml";
+import { solicitarImpresionTicket } from "@/lib/print/imprimirTicket";
+import { ahoraBogota } from "@/lib/dates";
 import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
 import { encolarOperacion } from "@/lib/offline/cola";
@@ -16,9 +21,11 @@ import { precargarRutasOffline } from "@/lib/offline/precargaRutas";
 
 interface FormularioCerrarTurnoProps {
   esperadoCop: MontoCOP;
+  sedeNombre: string;
+  cajeraNombre: string;
 }
 
-export function FormularioCerrarTurno({ esperadoCop }: FormularioCerrarTurnoProps) {
+export function FormularioCerrarTurno({ esperadoCop, sedeNombre, cajeraNombre }: FormularioCerrarTurnoProps) {
   const router = useRouter();
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const {
@@ -36,11 +43,44 @@ export function FormularioCerrarTurno({ esperadoCop }: FormularioCerrarTurnoProp
         setErrorGeneral("No tienes un turno abierto en este equipo.");
         return;
       }
+      const efectivoDeclaradoCop = Number(montoDesdePesos(datos.efectivoDeclaradoPesos));
+
+      // La tirilla de arqueo se arma y se imprime aquí mismo (acción local
+      // del navegador, no necesita internet) solo si se conoce el efectivo
+      // inicial de este turno -- turnos abiertos antes de este campo
+      // existir no lo tienen guardado localmente (ver turnoOfflineStore.ts),
+      // y en ese caso se omite en vez de imprimir un valor inventado. El
+      // registro en `impresiones` no puede preceder a la impresión como
+      // pide CLAUDE.md §13.9 (sin conexión no hay BD alcanzable) -- viaja
+      // en el payload encolado y el manejador de sincronización lo inserta
+      // al reconectar (mismo criterio que la tirilla de cobro offline).
+      let contenidoHtml: string | null = null;
+      let impresionExito: boolean | null = null;
+      let impresionError: string | null = null;
+      if (turno.efectivoInicialCop !== undefined) {
+        const efectivoInicialCop = BigInt(turno.efectivoInicialCop);
+        contenidoHtml = construirTicketArqueoHtml({
+          sedeNombre,
+          cajeraNombre,
+          fecha: ahoraBogota(),
+          efectivoInicialCop,
+          esperadoCop,
+          efectivoDeclaradoCop: BigInt(efectivoDeclaradoCop),
+          diferenciaCop: calcularDiferencia(BigInt(efectivoDeclaradoCop), esperadoCop),
+        });
+        const resultadoImpresion = solicitarImpresionTicket(contenidoHtml);
+        impresionExito = resultadoImpresion.exito;
+        impresionError = resultadoImpresion.error;
+      }
+
       await encolarOperacion({
         tipo: "cerrar_turno",
         payload: {
           turnoId: turno.turnoId,
-          efectivoDeclaradoCop: Number(montoDesdePesos(datos.efectivoDeclaradoPesos)),
+          efectivoDeclaradoCop,
+          contenidoHtml,
+          impresionExito,
+          impresionError,
         },
         creadaEn: new Date().toISOString(),
       });
@@ -60,6 +100,13 @@ export function FormularioCerrarTurno({ esperadoCop }: FormularioCerrarTurnoProp
     if (!resultado.ok) {
       setErrorGeneral(resultado.error.mensaje);
       return;
+    }
+    // El turno ya está cerrado; un fallo de impresión de aquí en adelante
+    // nunca debe bloquear el flujo (CLAUDE.md §10.2).
+    const impresion = resultado.valor.impresion;
+    if (impresion) {
+      const resultadoImpresion = solicitarImpresionTicket(impresion.html);
+      await reportarResultadoImpresion(impresion.impresionId, resultadoImpresion.exito, resultadoImpresion.error);
     }
     useTurnoOfflineStore.getState().cerrar();
     // Recién ahora /turno/abrir vuelve a ser cacheable (sin turno abierto

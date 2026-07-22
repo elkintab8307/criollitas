@@ -5,6 +5,12 @@ import { persist } from "zustand/middleware";
 
 export interface TurnoOffline {
   turnoId: string;
+  /** Opcional: turnos abiertos antes de que este campo existiera no lo
+   *  tienen en su copia persistida. Sin él, la tirilla de arqueo al cerrar
+   *  offline se omite (lib/print/construirTicketCajaHtml.ts la necesita
+   *  para "con cuánto se abrió la caja") en vez de imprimir un valor
+   *  inventado. */
+  efectivoInicialCop?: number;
 }
 
 interface TurnoOfflineState {

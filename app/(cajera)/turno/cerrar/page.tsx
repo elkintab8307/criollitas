@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { FormularioCerrarTurno } from "@/components/caja/FormularioCerrarTurno";
+import { BotonAbrirCaja } from "@/components/caja/BotonAbrirCaja";
 import { calcularEsperado } from "@/lib/caja/arqueo";
+import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 
 export default async function CerrarTurnoPage() {
   const supabase = await createServerSupabase();
@@ -11,6 +13,7 @@ export default async function CerrarTurnoPage() {
   if (!user || user.app_metadata?.rol !== "cajera") {
     redirect("/login");
   }
+  const sedeId = (user.app_metadata?.sede_id as string | undefined) ?? SEDE_DEFAULT_ID;
 
   const { data: turno } = await supabase
     .from("turnos_caja")
@@ -21,6 +24,13 @@ export default async function CerrarTurnoPage() {
   if (!turno) {
     redirect("/turno/abrir");
   }
+
+  const [{ data: usuarioFila }, { data: sedeFila }] = await Promise.all([
+    supabase.from("usuarios").select("nombre").eq("id", user.id).single(),
+    supabase.from("sedes").select("nombre").eq("id", sedeId).single(),
+  ]);
+  const cajeraNombre = usuarioFila?.nombre ?? "Cajera";
+  const sedeNombre = sedeFila?.nombre ?? "Criollitas";
 
   const { data: pagos } = await supabase
     .from("pagos")
@@ -43,7 +53,10 @@ export default async function CerrarTurnoPage() {
     <main className="p-8">
       <h1 className="font-display text-3xl text-brand-mostaza">Cerrar turno</h1>
       <p className="mt-2 mb-6 text-brand-crema/80">Cuenta el efectivo en caja y declara el total.</p>
-      <FormularioCerrarTurno esperadoCop={esperadoCop} />
+      <div className="mb-6">
+        <BotonAbrirCaja sedeNombre={sedeNombre} cajeraNombre={cajeraNombre} />
+      </div>
+      <FormularioCerrarTurno esperadoCop={esperadoCop} sedeNombre={sedeNombre} cajeraNombre={cajeraNombre} />
     </main>
   );
 }
