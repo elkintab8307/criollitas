@@ -407,6 +407,7 @@ export async function subirImagenProducto(
     .from("menu")
     .upload(ruta, archivo, { upsert: true, contentType: archivo.type });
   if (subidaError) {
+    console.error(`subirImagenProducto: fallo al subir ${ruta}:`, subidaError);
     return err({ codigo: "BASE_DATOS", mensaje: "No pudimos subir la imagen. Intenta de nuevo." });
   }
   const {
