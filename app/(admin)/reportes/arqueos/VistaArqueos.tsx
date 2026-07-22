@@ -22,8 +22,13 @@ const columnasArqueos: ColumnaReporte<FilaArqueo>[] = [
   },
   {
     clave: "ventasEfectivoCop",
-    encabezado: "Ventas",
+    encabezado: "Ventas (efectivo)",
     render: (f) => <span className="font-mono">{formatearCOP(BigInt(f.ventasEfectivoCop))}</span>,
+  },
+  {
+    clave: "ventasOtroMedioCop",
+    encabezado: "Ventas (otro medio)",
+    render: (f) => <span className="font-mono text-text-secondary">{formatearCOP(BigInt(f.ventasOtroMedioCop))}</span>,
   },
   {
     clave: "salidasCop",
@@ -114,7 +119,8 @@ export function VistaArqueos() {
               { clave: "abiertoEn", encabezado: "Apertura" },
               { clave: "cerradoEn", encabezado: "Cierre" },
               { clave: "efectivoInicialCop", encabezado: "Abrió con (COP)" },
-              { clave: "ventasEfectivoCop", encabezado: "Ventas (COP)" },
+              { clave: "ventasEfectivoCop", encabezado: "Ventas efectivo (COP)" },
+              { clave: "ventasOtroMedioCop", encabezado: "Ventas otro medio (COP)" },
               { clave: "salidasCop", encabezado: "Salidas (COP)" },
               { clave: "entradasExtraCop", encabezado: "Entradas extra (COP)" },
               { clave: "esperadoCop", encabezado: "Total en caja (COP)" },

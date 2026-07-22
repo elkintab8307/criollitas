@@ -37,6 +37,7 @@ const datosArqueoBase: DatosArqueo = {
   fecha: new Date("2026-07-21T23:10:00.000Z"),
   efectivoInicialCop: 10000000n,
   ventasEfectivoCop: 5500000n,
+  ventasOtroMedioCop: 2000000n,
   salidasCop: 800000n,
   entradasExtraCop: 300000n,
   esperadoCop: 15000000n,
@@ -75,6 +76,18 @@ describe("construirTicketArqueoHtml", () => {
     expect(posSalidas).toBeGreaterThan(posVentas);
     expect(posEntradas).toBeGreaterThan(posSalidas);
     expect(posTotal).toBeGreaterThan(posEntradas);
+  });
+
+  it("muestra las ventas por otro medio de pago aparte, sin sumarlas al cuadre de efectivo", () => {
+    const html = construirTicketArqueoHtml(datosArqueoBase);
+    expect(html).toContain("$ 20.000");
+    expect(html).toContain("Ventas por otro medio");
+    // El total en caja (solo efectivo) debe seguir siendo $150.000, no
+    // $170.000 -- los pagos virtuales nunca entran al cuadre físico.
+    const posOtroMedio = html.indexOf("Ventas por otro medio");
+    const posTotal = html.indexOf("Total en caja");
+    expect(posOtroMedio).toBeGreaterThan(-1);
+    expect(posTotal).toBeGreaterThan(-1);
   });
 
   it("muestra la diferencia negativa (faltante) con signo", () => {

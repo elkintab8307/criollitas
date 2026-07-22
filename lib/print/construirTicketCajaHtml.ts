@@ -82,10 +82,13 @@ export function construirTicketArqueoHtml(datos: DatosArqueo): string {
   <div class="fila"><span>Salidas (gastos/retiros)</span><span>-${formatearCOP(datos.salidasCop)}</span></div>
   <div class="fila"><span>Entradas extra</span><span>${formatearCOP(datos.entradasExtraCop)}</span></div>
   <div class="sep"></div>
-  <div class="fila total"><span>Total en caja</span><span>${formatearCOP(datos.esperadoCop)}</span></div>
+  <div class="fila total"><span>Total en caja (efectivo)</span><span>${formatearCOP(datos.esperadoCop)}</span></div>
   <div class="sep"></div>
   <div class="fila"><span>Efectivo contado</span><span>${formatearCOP(datos.efectivoDeclaradoCop)}</span></div>
   <div class="fila"><span>${etiquetaDiferencia(datos.diferenciaCop)}</span><span>${formatearCOP(datos.diferenciaCop)}</span></div>
+  <div class="sep"></div>
+  <div class="centro suave">Pagos virtuales (no cuentan para el cuadre)</div>
+  <div class="fila"><span>Ventas por otro medio</span><span>${formatearCOP(datos.ventasOtroMedioCop)}</span></div>
   <div class="cola-papel"></div>
 </body>
 </html>`;

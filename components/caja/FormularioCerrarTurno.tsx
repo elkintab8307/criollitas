@@ -28,6 +28,7 @@ const TIMEOUT_CERRAR_TURNO_MS = 6000;
 interface FormularioCerrarTurnoProps {
   esperadoCop: MontoCOP;
   ventasEfectivoCop: MontoCOP;
+  ventasOtroMedioCop: MontoCOP;
   salidasCop: MontoCOP;
   entradasExtraCop: MontoCOP;
   sedeNombre: string;
@@ -37,6 +38,7 @@ interface FormularioCerrarTurnoProps {
 export function FormularioCerrarTurno({
   esperadoCop,
   ventasEfectivoCop,
+  ventasOtroMedioCop,
   salidasCop,
   entradasExtraCop,
   sedeNombre,
@@ -78,6 +80,7 @@ export function FormularioCerrarTurno({
         fecha: ahoraBogota(),
         efectivoInicialCop,
         ventasEfectivoCop,
+        ventasOtroMedioCop,
         salidasCop,
         entradasExtraCop,
         esperadoCop,
@@ -152,6 +155,18 @@ export function FormularioCerrarTurno({
 
   return (
     <form onSubmit={onSubmit} className="flex max-w-sm flex-col gap-4" noValidate>
+      <div className="flex flex-col gap-1 rounded-clay-md bg-surface-sunken p-3">
+        <p className="text-sm text-brand-chocolate/70">
+          Ventas en efectivo: <span className="font-mono font-semibold">{formatearCOP(ventasEfectivoCop)}</span>
+        </p>
+        <p className="text-sm text-brand-chocolate/70">
+          Ventas por otro medio (Nequi, datáfono, etc.):{" "}
+          <span className="font-mono font-semibold">{formatearCOP(ventasOtroMedioCop)}</span>
+        </p>
+        <p className="text-xs text-brand-chocolate/60">
+          El cuadre de caja es solo con el efectivo -- los otros medios son pagos virtuales.
+        </p>
+      </div>
       <p className="text-sm text-brand-chocolate/70">
         Efectivo esperado: <span className="font-mono font-semibold">{formatearCOP(esperadoCop)}</span>
       </p>

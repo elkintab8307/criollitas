@@ -43,6 +43,7 @@ export default async function CerrarTurnoPage() {
     .eq("turno_id", turno.id);
 
   const pagosEfectivoCop = (pagos ?? []).filter((p) => p.metodo === "efectivo").map((p) => BigInt(p.monto_cop));
+  const pagosOtroMedioCop = (pagos ?? []).filter((p) => p.metodo !== "efectivo").map((p) => BigInt(p.monto_cop));
   const retirosCop = (movimientos ?? []).filter((m) => m.tipo === "retiro").map((m) => BigInt(m.monto_cop));
   const gastosCop = (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop));
   const ingresosExtraCop = (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop));
@@ -55,6 +56,7 @@ export default async function CerrarTurnoPage() {
     ingresosExtraCop,
   });
   const ventasEfectivoCop = sumar(...pagosEfectivoCop);
+  const ventasOtroMedioCop = sumar(...pagosOtroMedioCop);
   const salidasCop = sumar(...retirosCop, ...gastosCop);
   const entradasExtraCop = sumar(...ingresosExtraCop);
 
@@ -68,6 +70,7 @@ export default async function CerrarTurnoPage() {
       <FormularioCerrarTurno
         esperadoCop={esperadoCop}
         ventasEfectivoCop={ventasEfectivoCop}
+        ventasOtroMedioCop={ventasOtroMedioCop}
         salidasCop={salidasCop}
         entradasExtraCop={entradasExtraCop}
         sedeNombre={sedeNombre}

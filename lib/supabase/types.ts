@@ -886,6 +886,7 @@ export type Database = {
           salidas_cop: number
           turno_id: string
           ventas_efectivo_cop: number
+          ventas_otro_medio_cop: number
         }[]
       }
       fn_reporte_canales: {

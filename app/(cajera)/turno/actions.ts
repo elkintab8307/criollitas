@@ -119,6 +119,9 @@ async function construirYRegistrarTicketArqueo(
     const ventasEfectivoCop = sumar(
       ...(pagos ?? []).filter((p) => p.metodo === "efectivo").map((p) => BigInt(p.monto_cop)),
     );
+    const ventasOtroMedioCop = sumar(
+      ...(pagos ?? []).filter((p) => p.metodo !== "efectivo").map((p) => BigInt(p.monto_cop)),
+    );
     const salidasCop = sumar(
       ...(movimientos ?? []).filter((m) => m.tipo === "retiro" || m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
     );
@@ -132,6 +135,7 @@ async function construirYRegistrarTicketArqueo(
       fecha: ahoraBogota(),
       efectivoInicialCop: BigInt(turnoFila.efectivo_inicial_cop),
       ventasEfectivoCop,
+      ventasOtroMedioCop,
       salidasCop,
       entradasExtraCop,
       esperadoCop: BigInt(turnoFila.esperado_cop),

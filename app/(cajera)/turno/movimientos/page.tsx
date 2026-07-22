@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { FormularioMovimiento } from "@/components/caja/FormularioMovimiento";
 import { ClayBadge } from "@/components/ui/ClayBadge";
-import { formatearCOP } from "@/lib/money";
+import { formatearCOP, sumar } from "@/lib/money";
 import { formatearHora } from "@/lib/dates";
 import { calcularEsperado } from "@/lib/caja/arqueo";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
@@ -55,15 +55,24 @@ export default async function MovimientosPage() {
     gastosCop: (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
     ingresosExtraCop: (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop)),
   });
+  const ventasOtroMedioCop = sumar(
+    ...(pagos ?? []).filter((p) => p.metodo !== "efectivo").map((p) => BigInt(p.monto_cop)),
+  );
 
   return (
     <main className="p-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="font-display text-3xl text-brand-mostaza">Movimientos de caja</h1>
-        <p className="font-display text-lg text-brand-crema">
-          Dinero en caja ahora:{" "}
-          <span className="font-mono font-semibold text-brand-mostaza">{formatearCOP(dineroEnCajaCop)}</span>
-        </p>
+        <div className="text-right">
+          <p className="font-display text-lg text-brand-crema">
+            Dinero en efectivo en caja ahora:{" "}
+            <span className="font-mono font-semibold text-brand-mostaza">{formatearCOP(dineroEnCajaCop)}</span>
+          </p>
+          <p className="text-sm text-brand-crema/70">
+            Por otro medio de pago (no afecta el cuadre):{" "}
+            <span className="font-mono font-semibold">{formatearCOP(ventasOtroMedioCop)}</span>
+          </p>
+        </div>
       </div>
       <div className="mt-6 grid gap-8 md:grid-cols-2">
         <FormularioMovimiento sedeNombre={sedeNombre} cajeraNombre={cajeraNombre} />

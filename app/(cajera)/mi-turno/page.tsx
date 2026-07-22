@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ClayButton } from "@/components/ui/ClayButton";
-import { formatearCOP } from "@/lib/money";
+import { formatearCOP, sumar } from "@/lib/money";
 import { calcularEsperado } from "@/lib/caja/arqueo";
 
 export default async function MiTurnoPage() {
@@ -40,6 +40,9 @@ export default async function MiTurnoPage() {
     gastosCop: (movimientos ?? []).filter((m) => m.tipo === "gasto").map((m) => BigInt(m.monto_cop)),
     ingresosExtraCop: (movimientos ?? []).filter((m) => m.tipo === "ingreso_extra").map((m) => BigInt(m.monto_cop)),
   });
+  const ventasOtroMedioCop = sumar(
+    ...(pagos ?? []).filter((p) => p.metodo !== "efectivo").map((p) => BigInt(p.monto_cop)),
+  );
 
   return (
     <main className="p-8">
@@ -49,6 +52,11 @@ export default async function MiTurnoPage() {
       </p>
       <p className="mt-2 text-lg text-brand-crema">
         Efectivo esperado ahora: <span className="font-mono font-semibold">{formatearCOP(esperadoCop)}</span>
+      </p>
+      <p className="mt-1 text-sm text-brand-crema/70">
+        Ventas por otro medio de pago (Nequi, datáfono, etc.):{" "}
+        <span className="font-mono font-semibold">{formatearCOP(ventasOtroMedioCop)}</span> — no afectan el cuadre
+        de caja.
       </p>
       <div className="mt-6 flex gap-3">
         <Link href="/pedidos">

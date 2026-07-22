@@ -22,6 +22,7 @@ export interface FilaArqueo {
   cerradoEn: string;
   efectivoInicialCop: number;
   ventasEfectivoCop: number;
+  ventasOtroMedioCop: number;
   salidasCop: number;
   entradasExtraCop: number;
   esperadoCop: number;
@@ -53,6 +54,7 @@ export async function obtenerReporteArqueos(
       cerradoEn: fila.cerrado_en,
       efectivoInicialCop: fila.efectivo_inicial_cop,
       ventasEfectivoCop: fila.ventas_efectivo_cop ?? 0,
+      ventasOtroMedioCop: fila.ventas_otro_medio_cop ?? 0,
       salidasCop: fila.salidas_cop ?? 0,
       entradasExtraCop: fila.entradas_extra_cop ?? 0,
       esperadoCop: fila.esperado_cop ?? 0,
