@@ -16,6 +16,12 @@ import { ahoraBogota } from "@/lib/dates";
 import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
 import { encolarOperacion } from "@/lib/offline/cola";
+import { conTimeout, ErrorTimeout, marcarRedDegradadaPorTimeout } from "@/lib/offline/conTimeout";
+
+// Ver el mismo comentario en FormularioAbrirTurno.tsx: las Server Actions
+// son POST, el Service Worker las ignora, y una red degradada las deja
+// colgadas en vez de fallar rápido. Pasados 6s se cae al camino offline.
+const TIMEOUT_MOVIMIENTO_MS = 6000;
 
 const ETIQUETA_TIPO: Record<MovimientoInput["tipo"], string> = {
   retiro: "Retiro",
@@ -38,48 +44,63 @@ export function FormularioMovimiento({ sedeNombre, cajeraNombre }: FormularioMov
     formState: { errors, isSubmitting },
   } = useForm<MovimientoInput>({ resolver: zodResolver(movimientoSchema) });
 
+  async function registrarLocalmente(datos: MovimientoInput): Promise<boolean> {
+    const turno = useTurnoOfflineStore.getState().turno;
+    if (!turno) {
+      setErrorGeneral("No tienes un turno abierto.");
+      return false;
+    }
+    // El comprobante se arma e imprime aquí mismo (acción local del
+    // navegador, no necesita internet); el registro en `impresiones` no
+    // puede preceder a la impresión como pide CLAUDE.md §13.9 (sin
+    // conexión no hay BD alcanzable) -- viaja en el payload encolado y
+    // el manejador de sincronización lo inserta al reconectar (mismo
+    // criterio que la tirilla de arqueo offline).
+    const html = construirTicketMovimientoHtml({
+      sedeNombre,
+      cajeraNombre,
+      fecha: ahoraBogota(),
+      tipo: datos.tipo,
+      concepto: datos.concepto,
+      montoCop: montoDesdePesos(datos.montoPesos),
+    });
+    const resultadoImpresion = solicitarImpresionTicket(html);
+    await encolarOperacion({
+      tipo: "registrar_movimiento",
+      payload: {
+        turnoId: turno.turnoId,
+        tipo: datos.tipo,
+        concepto: datos.concepto,
+        montoCop: Number(montoDesdePesos(datos.montoPesos)),
+        contenidoHtml: html,
+        impresionExito: resultadoImpresion.exito,
+        impresionError: resultadoImpresion.error,
+      },
+      creadaEn: new Date().toISOString(),
+    });
+    reset();
+    return true;
+  }
+
   const onSubmit = handleSubmit(async (datos) => {
     setErrorGeneral(null);
 
     if (useConectividadStore.getState().estado === "offline") {
-      const turno = useTurnoOfflineStore.getState().turno;
-      if (!turno) {
-        setErrorGeneral("No tienes un turno abierto.");
-        return;
-      }
-      // El comprobante se arma e imprime aquí mismo (acción local del
-      // navegador, no necesita internet); el registro en `impresiones` no
-      // puede preceder a la impresión como pide CLAUDE.md §13.9 (sin
-      // conexión no hay BD alcanzable) -- viaja en el payload encolado y
-      // el manejador de sincronización lo inserta al reconectar (mismo
-      // criterio que la tirilla de arqueo offline).
-      const html = construirTicketMovimientoHtml({
-        sedeNombre,
-        cajeraNombre,
-        fecha: ahoraBogota(),
-        tipo: datos.tipo,
-        concepto: datos.concepto,
-        montoCop: montoDesdePesos(datos.montoPesos),
-      });
-      const resultadoImpresion = solicitarImpresionTicket(html);
-      await encolarOperacion({
-        tipo: "registrar_movimiento",
-        payload: {
-          turnoId: turno.turnoId,
-          tipo: datos.tipo,
-          concepto: datos.concepto,
-          montoCop: Number(montoDesdePesos(datos.montoPesos)),
-          contenidoHtml: html,
-          impresionExito: resultadoImpresion.exito,
-          impresionError: resultadoImpresion.error,
-        },
-        creadaEn: new Date().toISOString(),
-      });
-      reset();
+      await registrarLocalmente(datos);
       return;
     }
 
-    const resultado = await registrarMovimiento(datos);
+    let resultado;
+    try {
+      resultado = await conTimeout(registrarMovimiento(datos), TIMEOUT_MOVIMIENTO_MS);
+    } catch (error) {
+      if (error instanceof ErrorTimeout) {
+        marcarRedDegradadaPorTimeout();
+        await registrarLocalmente(datos);
+        return;
+      }
+      throw error;
+    }
     if (!resultado.ok) {
       setErrorGeneral(resultado.error.mensaje);
       return;

@@ -13,6 +13,12 @@ import { agregarItemsPedidoLocal, leerPedidoLocal } from "@/lib/offline/pedidosL
 import { encolarOperacion } from "@/lib/offline/cola";
 import type { ItemPedidoLocal } from "@/lib/offline/db";
 import type { ItemConfirmadoVista, PedidoVista } from "@/components/pedido/tipos";
+import { conTimeout, ErrorTimeout, marcarRedDegradadaPorTimeout } from "@/lib/offline/conTimeout";
+
+// Ver el mismo comentario en FormularioAbrirTurno.tsx: las Server Actions
+// son POST, el Service Worker las ignora, y una red degradada las deja
+// colgadas en vez de fallar rápido. Pasados 6s se cae al camino offline.
+const TIMEOUT_AGREGAR_ITEMS_MS = 6000;
 
 const ETIQUETA_ESTADO_ITEM: Record<ItemConfirmadoVista["estadoItem"], string> = {
   pendiente: "Pendiente",
@@ -57,63 +63,82 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, u
   const esPrimerEnvio = pedido.estado === "abierto";
   const textoBoton = esPrimerEnvio ? (usaCocina ? "Enviar a cocina" : "Confirmar pedido") : "Agregar a la comanda";
 
+  async function agregarLocalmente(): Promise<boolean> {
+    // Solo un pedido que ya vive en la copia local (creado offline,
+    // Bloque J3d, o replicado tras un cobro online -- ver CarritoNuevo.tsx)
+    // admite agregarle ítems sin conexión -- para un pedido que solo
+    // existe en el servidor no hay copia local que editar, y encolar la
+    // operación sin reflejarla en ninguna pantalla dejaría a la vendedora
+    // sin forma de ver lo que agregó.
+    const pedidoLocal = await leerPedidoLocal(pedido.id);
+    if (!pedidoLocal) {
+      setError("Este pedido no está guardado en este equipo. Conéctate a internet para modificarlo.");
+      return false;
+    }
+    const itemsLocales: ItemPedidoLocal[] = items.map((item) => ({
+      productoId: item.productoId,
+      nombre: item.nombre,
+      cantidad: item.cantidad,
+      precioUnitCop: Number(montoDesdePesos(item.precioUnitPesos)),
+      modificadores: item.modificadores.map((m) => ({
+        modificadorId: m.modificadorId,
+        nombre: m.nombre,
+        precioDeltaCop: Number(montoDesdePesos(m.precioDeltaPesos)),
+      })),
+      nota: item.nota || null,
+    }));
+    await agregarItemsPedidoLocal(pedido.id, itemsLocales);
+    await encolarOperacion({
+      tipo: "agregar_items_pedido",
+      payload: {
+        pedidoId: pedido.id,
+        items: items.map((item) => ({
+          productoId: item.productoId,
+          cantidad: item.cantidad,
+          modificadorIds: item.modificadores.map((m) => m.modificadorId),
+          nota: item.nota || undefined,
+        })),
+      },
+      creadaEn: new Date().toISOString(),
+    });
+    vaciar();
+    onRecargar();
+    return true;
+  }
+
   async function confirmar() {
     if (items.length === 0 || soloLectura) return;
     setError(null);
     setEnviando(true);
 
     if (useConectividadStore.getState().estado === "offline") {
-      // Solo un pedido que ya vive en la copia local (creado offline,
-      // Bloque J3d) admite agregarle ítems sin conexión -- para un pedido
-      // que solo existe en el servidor no hay copia local que editar, y
-      // encolar la operación sin reflejarla en ninguna pantalla dejaría a
-      // la vendedora sin forma de ver lo que agregó.
-      const pedidoLocal = await leerPedidoLocal(pedido.id);
-      if (!pedidoLocal) {
-        setError("Este pedido no está guardado en este equipo. Conéctate a internet para modificarlo.");
-        setEnviando(false);
-        return;
-      }
-      const itemsLocales: ItemPedidoLocal[] = items.map((item) => ({
-        productoId: item.productoId,
-        nombre: item.nombre,
-        cantidad: item.cantidad,
-        precioUnitCop: Number(montoDesdePesos(item.precioUnitPesos)),
-        modificadores: item.modificadores.map((m) => ({
-          modificadorId: m.modificadorId,
-          nombre: m.nombre,
-          precioDeltaCop: Number(montoDesdePesos(m.precioDeltaPesos)),
-        })),
-        nota: item.nota || null,
-      }));
-      await agregarItemsPedidoLocal(pedido.id, itemsLocales);
-      await encolarOperacion({
-        tipo: "agregar_items_pedido",
-        payload: {
-          pedidoId: pedido.id,
+      await agregarLocalmente();
+      setEnviando(false);
+      return;
+    }
+
+    let resultado;
+    try {
+      resultado = await conTimeout(
+        confirmarItemsPedido(pedido.id, {
           items: items.map((item) => ({
             productoId: item.productoId,
             cantidad: item.cantidad,
             modificadorIds: item.modificadores.map((m) => m.modificadorId),
             nota: item.nota || undefined,
           })),
-        },
-        creadaEn: new Date().toISOString(),
-      });
-      setEnviando(false);
-      vaciar();
-      onRecargar();
-      return;
+        }),
+        TIMEOUT_AGREGAR_ITEMS_MS,
+      );
+    } catch (error) {
+      if (error instanceof ErrorTimeout) {
+        marcarRedDegradadaPorTimeout();
+        await agregarLocalmente();
+        setEnviando(false);
+        return;
+      }
+      throw error;
     }
-
-    const resultado = await confirmarItemsPedido(pedido.id, {
-      items: items.map((item) => ({
-        productoId: item.productoId,
-        cantidad: item.cantidad,
-        modificadorIds: item.modificadores.map((m) => m.modificadorId),
-        nota: item.nota || undefined,
-      })),
-    });
     setEnviando(false);
     if (!resultado.ok) {
       setError(resultado.error.mensaje);

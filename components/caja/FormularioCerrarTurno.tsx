@@ -18,6 +18,12 @@ import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
 import { encolarOperacion } from "@/lib/offline/cola";
 import { precargarRutasOffline } from "@/lib/offline/precargaRutas";
+import { conTimeout, ErrorTimeout, marcarRedDegradadaPorTimeout } from "@/lib/offline/conTimeout";
+
+// Ver el mismo comentario en FormularioAbrirTurno.tsx: las Server Actions
+// son POST, el Service Worker las ignora, y una red degradada las deja
+// colgadas en vez de fallar rápido. Pasados 6s se cae al camino offline.
+const TIMEOUT_CERRAR_TURNO_MS = 6000;
 
 interface FormularioCerrarTurnoProps {
   esperadoCop: MontoCOP;
@@ -44,72 +50,87 @@ export function FormularioCerrarTurno({
     formState: { errors, isSubmitting },
   } = useForm<CierreTurnoInput>({ resolver: zodResolver(cierreTurnoSchema) });
 
+  async function cerrarLocalmente(datos: CierreTurnoInput): Promise<boolean> {
+    const turno = useTurnoOfflineStore.getState().turno;
+    if (!turno) {
+      setErrorGeneral("No tienes un turno abierto en este equipo.");
+      return false;
+    }
+    const efectivoDeclaradoCop = Number(montoDesdePesos(datos.efectivoDeclaradoPesos));
+
+    // La tirilla de arqueo se arma y se imprime aquí mismo (acción local
+    // del navegador, no necesita internet) solo si se conoce el efectivo
+    // inicial de este turno -- turnos abiertos antes de este campo
+    // existir no lo tienen guardado localmente (ver turnoOfflineStore.ts),
+    // y en ese caso se omite en vez de imprimir un valor inventado. El
+    // registro en `impresiones` no puede preceder a la impresión como
+    // pide CLAUDE.md §13.9 (sin conexión no hay BD alcanzable) -- viaja
+    // en el payload encolado y el manejador de sincronización lo inserta
+    // al reconectar (mismo criterio que la tirilla de cobro offline).
+    let contenidoHtml: string | null = null;
+    let impresionExito: boolean | null = null;
+    let impresionError: string | null = null;
+    if (turno.efectivoInicialCop !== undefined) {
+      const efectivoInicialCop = BigInt(turno.efectivoInicialCop);
+      contenidoHtml = construirTicketArqueoHtml({
+        sedeNombre,
+        cajeraNombre,
+        fecha: ahoraBogota(),
+        efectivoInicialCop,
+        ventasEfectivoCop,
+        salidasCop,
+        entradasExtraCop,
+        esperadoCop,
+        efectivoDeclaradoCop: BigInt(efectivoDeclaradoCop),
+        diferenciaCop: calcularDiferencia(BigInt(efectivoDeclaradoCop), esperadoCop),
+      });
+      const resultadoImpresion = solicitarImpresionTicket(contenidoHtml);
+      impresionExito = resultadoImpresion.exito;
+      impresionError = resultadoImpresion.error;
+    }
+
+    await encolarOperacion({
+      tipo: "cerrar_turno",
+      payload: {
+        turnoId: turno.turnoId,
+        efectivoDeclaradoCop,
+        contenidoHtml,
+        impresionExito,
+        impresionError,
+      },
+      creadaEn: new Date().toISOString(),
+    });
+    useTurnoOfflineStore.getState().cerrar();
+    // Navegación completa (no router.push, mismo motivo documentado en
+    // los otros formularios offline) hacia /pin y no hacia /turno/abrir:
+    // /turno/abrir solo es cacheable cuando NO hay turno abierto (con
+    // turno redirige y el guard de precarga la descarta), así que puede
+    // no tener copia si el turno se abrió rápido tras el PIN. /pin es
+    // pública, se cachea en toda pasada de precarga, y además es el
+    // paso natural tras cerrar el turno (fin del relevo).
+    window.location.href = "/pin";
+    return true;
+  }
+
   const onSubmit = handleSubmit(async (datos) => {
     setErrorGeneral(null);
 
     if (useConectividadStore.getState().estado === "offline") {
-      const turno = useTurnoOfflineStore.getState().turno;
-      if (!turno) {
-        setErrorGeneral("No tienes un turno abierto en este equipo.");
-        return;
-      }
-      const efectivoDeclaradoCop = Number(montoDesdePesos(datos.efectivoDeclaradoPesos));
-
-      // La tirilla de arqueo se arma y se imprime aquí mismo (acción local
-      // del navegador, no necesita internet) solo si se conoce el efectivo
-      // inicial de este turno -- turnos abiertos antes de este campo
-      // existir no lo tienen guardado localmente (ver turnoOfflineStore.ts),
-      // y en ese caso se omite en vez de imprimir un valor inventado. El
-      // registro en `impresiones` no puede preceder a la impresión como
-      // pide CLAUDE.md §13.9 (sin conexión no hay BD alcanzable) -- viaja
-      // en el payload encolado y el manejador de sincronización lo inserta
-      // al reconectar (mismo criterio que la tirilla de cobro offline).
-      let contenidoHtml: string | null = null;
-      let impresionExito: boolean | null = null;
-      let impresionError: string | null = null;
-      if (turno.efectivoInicialCop !== undefined) {
-        const efectivoInicialCop = BigInt(turno.efectivoInicialCop);
-        contenidoHtml = construirTicketArqueoHtml({
-          sedeNombre,
-          cajeraNombre,
-          fecha: ahoraBogota(),
-          efectivoInicialCop,
-          ventasEfectivoCop,
-          salidasCop,
-          entradasExtraCop,
-          esperadoCop,
-          efectivoDeclaradoCop: BigInt(efectivoDeclaradoCop),
-          diferenciaCop: calcularDiferencia(BigInt(efectivoDeclaradoCop), esperadoCop),
-        });
-        const resultadoImpresion = solicitarImpresionTicket(contenidoHtml);
-        impresionExito = resultadoImpresion.exito;
-        impresionError = resultadoImpresion.error;
-      }
-
-      await encolarOperacion({
-        tipo: "cerrar_turno",
-        payload: {
-          turnoId: turno.turnoId,
-          efectivoDeclaradoCop,
-          contenidoHtml,
-          impresionExito,
-          impresionError,
-        },
-        creadaEn: new Date().toISOString(),
-      });
-      useTurnoOfflineStore.getState().cerrar();
-      // Navegación completa (no router.push, mismo motivo documentado en
-      // los otros formularios offline) hacia /pin y no hacia /turno/abrir:
-      // /turno/abrir solo es cacheable cuando NO hay turno abierto (con
-      // turno redirige y el guard de precarga la descarta), así que puede
-      // no tener copia si el turno se abrió rápido tras el PIN. /pin es
-      // pública, se cachea en toda pasada de precarga, y además es el
-      // paso natural tras cerrar el turno (fin del relevo).
-      window.location.href = "/pin";
+      await cerrarLocalmente(datos);
       return;
     }
 
-    const resultado = await cerrarTurno(datos);
+    let resultado;
+    try {
+      resultado = await conTimeout(cerrarTurno(datos), TIMEOUT_CERRAR_TURNO_MS);
+    } catch (error) {
+      if (error instanceof ErrorTimeout) {
+        marcarRedDegradadaPorTimeout();
+        await cerrarLocalmente(datos);
+        return;
+      }
+      throw error;
+    }
     if (!resultado.ok) {
       setErrorGeneral(resultado.error.mensaje);
       return;

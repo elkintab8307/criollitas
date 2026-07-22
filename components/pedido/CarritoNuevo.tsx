@@ -11,6 +11,12 @@ import { useSesionOfflineStore } from "@/lib/offline/sesionOfflineStore";
 import { crearPedidoLocal } from "@/lib/offline/pedidosLocales";
 import { encolarOperacion } from "@/lib/offline/cola";
 import type { ItemPedidoLocal } from "@/lib/offline/db";
+import { conTimeout, ErrorTimeout, marcarRedDegradadaPorTimeout } from "@/lib/offline/conTimeout";
+
+// Ver el mismo comentario en FormularioAbrirTurno.tsx: las Server Actions
+// son POST, el Service Worker las ignora, y una red degradada las deja
+// colgadas en vez de fallar rápido. Pasados 6s se cae al camino offline.
+const TIMEOUT_CREAR_PEDIDO_MS = 6000;
 
 interface CarritoNuevoProps {
   origen: OrigenPedido;
@@ -39,74 +45,92 @@ export function CarritoNuevo({ origen, usaCocina }: CarritoNuevoProps) {
     ),
   );
 
+  async function crearLocalmente(): Promise<boolean> {
+    const sesion = useSesionOfflineStore.getState().sesion;
+    if (!sesion) {
+      setError(
+        "No hay una identidad guardada en este equipo. Conéctate a internet una vez para poder trabajar sin conexión.",
+      );
+      return false;
+    }
+    const pedidoId = crypto.randomUUID();
+    const itemsLocales: ItemPedidoLocal[] = items.map((item) => ({
+      productoId: item.productoId,
+      nombre: item.nombre,
+      cantidad: item.cantidad,
+      precioUnitCop: Number(montoDesdePesos(item.precioUnitPesos)),
+      modificadores: item.modificadores.map((m) => ({
+        modificadorId: m.modificadorId,
+        nombre: m.nombre,
+        precioDeltaCop: Number(montoDesdePesos(m.precioDeltaPesos)),
+      })),
+      nota: item.nota || null,
+    }));
+    await crearPedidoLocal({
+      pedidoId,
+      origen,
+      items: itemsLocales,
+      estado: "abierto",
+      sedeId: sesion.sedeId,
+      vendedoraId: sesion.usuarioId,
+      creadoEn: new Date().toISOString(),
+    });
+    await encolarOperacion({
+      tipo: "crear_pedido_con_items",
+      payload: {
+        pedidoId,
+        origen,
+        items: items.map((item) => ({
+          productoId: item.productoId,
+          cantidad: item.cantidad,
+          modificadorIds: item.modificadores.map((m) => m.modificadorId),
+          nota: item.nota || undefined,
+        })),
+      },
+      creadaEn: new Date().toISOString(),
+    });
+    vaciar();
+    // Navegación completa (no router.push): mismo motivo documentado en
+    // FormularioCerrarTurno.tsx. El Service Worker sirve la plantilla de
+    // /pedido/[id] (public/sw.js, Bloque J3e) porque este id recién
+    // creado no puede tener copia exacta precargada.
+    window.location.href = `/pedido/${pedidoId}`;
+    return true;
+  }
+
   async function confirmar() {
     if (items.length === 0) return;
     setError(null);
     setEnviando(true);
 
     if (useConectividadStore.getState().estado === "offline") {
-      const sesion = useSesionOfflineStore.getState().sesion;
-      if (!sesion) {
-        setError(
-          "No hay una identidad guardada en este equipo. Conéctate a internet una vez para poder trabajar sin conexión.",
-        );
-        setEnviando(false);
-        return;
-      }
-      const pedidoId = crypto.randomUUID();
-      const itemsLocales: ItemPedidoLocal[] = items.map((item) => ({
-        productoId: item.productoId,
-        nombre: item.nombre,
-        cantidad: item.cantidad,
-        precioUnitCop: Number(montoDesdePesos(item.precioUnitPesos)),
-        modificadores: item.modificadores.map((m) => ({
-          modificadorId: m.modificadorId,
-          nombre: m.nombre,
-          precioDeltaCop: Number(montoDesdePesos(m.precioDeltaPesos)),
-        })),
-        nota: item.nota || null,
-      }));
-      await crearPedidoLocal({
-        pedidoId,
-        origen,
-        items: itemsLocales,
-        estado: "abierto",
-        sedeId: sesion.sedeId,
-        vendedoraId: sesion.usuarioId,
-        creadoEn: new Date().toISOString(),
-      });
-      await encolarOperacion({
-        tipo: "crear_pedido_con_items",
-        payload: {
-          pedidoId,
-          origen,
+      await crearLocalmente();
+      setEnviando(false);
+      return;
+    }
+
+    let resultado;
+    try {
+      resultado = await conTimeout(
+        crearPedidoConItems(origen, {
           items: items.map((item) => ({
             productoId: item.productoId,
             cantidad: item.cantidad,
             modificadorIds: item.modificadores.map((m) => m.modificadorId),
             nota: item.nota || undefined,
           })),
-        },
-        creadaEn: new Date().toISOString(),
-      });
-      setEnviando(false);
-      vaciar();
-      // Navegación completa (no router.push): mismo motivo documentado en
-      // FormularioCerrarTurno.tsx. El Service Worker sirve la plantilla de
-      // /pedido/[id] (public/sw.js, Bloque J3e) porque este id recién
-      // creado no puede tener copia exacta precargada.
-      window.location.href = `/pedido/${pedidoId}`;
-      return;
+        }),
+        TIMEOUT_CREAR_PEDIDO_MS,
+      );
+    } catch (error) {
+      if (error instanceof ErrorTimeout) {
+        marcarRedDegradadaPorTimeout();
+        await crearLocalmente();
+        setEnviando(false);
+        return;
+      }
+      throw error;
     }
-
-    const resultado = await crearPedidoConItems(origen, {
-      items: items.map((item) => ({
-        productoId: item.productoId,
-        cantidad: item.cantidad,
-        modificadorIds: item.modificadores.map((m) => m.modificadorId),
-        nota: item.nota || undefined,
-      })),
-    });
     setEnviando(false);
     if (!resultado.ok) {
       setError(resultado.error.mensaje);

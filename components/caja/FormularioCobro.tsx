@@ -15,6 +15,16 @@ import { useConectividadStore } from "@/lib/offline/conectividadStore";
 import { useTurnoOfflineStore } from "@/lib/offline/turnoOfflineStore";
 import { marcarPedidoLocalCobrado } from "@/lib/offline/pedidosLocales";
 import { encolarOperacion } from "@/lib/offline/cola";
+import { conTimeout, ErrorTimeout, marcarRedDegradadaPorTimeout } from "@/lib/offline/conTimeout";
+
+// Ver el mismo comentario en FormularioAbrirTurno.tsx: las Server Actions
+// son POST, el Service Worker las ignora, y una red degradada las deja
+// colgadas en vez de fallar rápido. Pasados 6s se cae al camino offline.
+// Si la petición original de todos modos llega a completarse tarde en el
+// servidor, el pedido ya habría quedado "cobrado" -- el reintento offline
+// fallará al sincronizar (cobrar_pedido exige estado listo/entregado) en
+// vez de duplicar el cobro.
+const TIMEOUT_COBRAR_MS = 6000;
 
 /** Datos mínimos para armar la tirilla en el navegador cuando el cobro
  *  ocurre sin conexión (Bloque J3f) -- online la arma el servidor. */
@@ -99,59 +109,76 @@ export function FormularioCobro({ pedidoId, totalCop, ticketOffline }: Formulari
     setPagos((filas) => filas.map((p, i) => (i === indice ? { ...p, entregaPesos, montoPesos: cubrePesos } : p)));
   }
 
+  async function cobrarLocalmente(): Promise<boolean> {
+    if (!useTurnoOfflineStore.getState().turno) {
+      setError("Abre tu turno antes de cobrar.");
+      return false;
+    }
+    // La tirilla se arma y se imprime aquí mismo abriendo el diálogo del
+    // navegador (CLAUDE.md §10) -- no necesita internet. El registro en
+    // `impresiones` no puede preceder a la impresión como pide
+    // CLAUDE.md §13.9 (no hay base de datos alcanzable) -- queda en el
+    // payload encolado y el manejador de sincronización lo inserta con
+    // el resultado real al reconectar, única adaptación posible offline.
+    const html = construirTicketHtml({
+      sedeNombre: ticketOffline.sedeNombre,
+      numeroCorto: ticketOffline.numeroCorto,
+      fecha: ahoraBogota(),
+      origen: ticketOffline.origen,
+      items: ticketOffline.items.map((i) => ({
+        cantidad: i.cantidad,
+        nombre: i.nombre,
+        subtotalCop: BigInt(i.subtotalCop),
+      })),
+      subtotalCop: BigInt(ticketOffline.subtotalCop),
+      totalCop,
+      pagos: pagos.map((p) => ({ metodo: p.metodo, montoCop: montoDesdePesos(Math.trunc(p.montoPesos) || 0) })),
+    });
+    const resultadoImpresion = solicitarImpresionTicket(html);
+    await marcarPedidoLocalCobrado(pedidoId);
+    await encolarOperacion({
+      tipo: "cobrar_pedido",
+      payload: {
+        pedidoId,
+        pagos: pagos.map((p) => ({ metodo: p.metodo, montoPesos: Math.trunc(p.montoPesos) || 0 })),
+        contenidoHtml: html,
+        impresionExito: resultadoImpresion.exito,
+        impresionError: resultadoImpresion.error,
+      },
+      creadaEn: new Date().toISOString(),
+    });
+    // Navegación completa (no router.push): mismo motivo documentado en
+    // FormularioCerrarTurno.tsx; /pedidos está precargada.
+    window.location.href = "/pedidos";
+    return true;
+  }
+
   async function confirmar() {
     if (!cuadra) return;
     setError(null);
     setEnviando(true);
 
     if (useConectividadStore.getState().estado === "offline") {
-      if (!useTurnoOfflineStore.getState().turno) {
-        setError("Abre tu turno antes de cobrar.");
-        setEnviando(false);
-        return;
-      }
-      // La tirilla se arma y se imprime aquí mismo abriendo el diálogo del
-      // navegador (CLAUDE.md §10) -- no necesita internet. El registro en
-      // `impresiones` no puede preceder a la impresión como pide
-      // CLAUDE.md §13.9 (no hay base de datos alcanzable) -- queda en el
-      // payload encolado y el manejador de sincronización lo inserta con
-      // el resultado real al reconectar, única adaptación posible offline.
-      const html = construirTicketHtml({
-        sedeNombre: ticketOffline.sedeNombre,
-        numeroCorto: ticketOffline.numeroCorto,
-        fecha: ahoraBogota(),
-        origen: ticketOffline.origen,
-        items: ticketOffline.items.map((i) => ({
-          cantidad: i.cantidad,
-          nombre: i.nombre,
-          subtotalCop: BigInt(i.subtotalCop),
-        })),
-        subtotalCop: BigInt(ticketOffline.subtotalCop),
-        totalCop,
-        pagos: pagos.map((p) => ({ metodo: p.metodo, montoCop: montoDesdePesos(Math.trunc(p.montoPesos) || 0) })),
-      });
-      const resultadoImpresion = solicitarImpresionTicket(html);
-      await marcarPedidoLocalCobrado(pedidoId);
-      await encolarOperacion({
-        tipo: "cobrar_pedido",
-        payload: {
-          pedidoId,
-          pagos: pagos.map((p) => ({ metodo: p.metodo, montoPesos: Math.trunc(p.montoPesos) || 0 })),
-          contenidoHtml: html,
-          impresionExito: resultadoImpresion.exito,
-          impresionError: resultadoImpresion.error,
-        },
-        creadaEn: new Date().toISOString(),
-      });
-      // Navegación completa (no router.push): mismo motivo documentado en
-      // FormularioCerrarTurno.tsx; /pedidos está precargada.
-      window.location.href = "/pedidos";
+      await cobrarLocalmente();
+      setEnviando(false);
       return;
     }
 
-    const resultado = await cobrarPedido(pedidoId, {
-      pagos: pagos.map((p) => ({ metodo: p.metodo, montoPesos: p.montoPesos })),
-    });
+    let resultado;
+    try {
+      resultado = await conTimeout(
+        cobrarPedido(pedidoId, { pagos: pagos.map((p) => ({ metodo: p.metodo, montoPesos: p.montoPesos })) }),
+        TIMEOUT_COBRAR_MS,
+      );
+    } catch (error) {
+      if (error instanceof ErrorTimeout) {
+        marcarRedDegradadaPorTimeout();
+        await cobrarLocalmente();
+        setEnviando(false);
+        return;
+      }
+      throw error;
+    }
     setEnviando(false);
     if (!resultado.ok) {
       setError(resultado.error.mensaje);
