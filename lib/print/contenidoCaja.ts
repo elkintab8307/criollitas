@@ -35,7 +35,11 @@ export interface MovimientoArqueo {
 export interface DatosArqueo {
   sedeNombre: string;
   cajeraNombre: string;
+  /** Momento del cierre -- se muestra como "Cierre" en la tirilla. */
   fecha: Date;
+  /** Momento de apertura del turno -- se muestra como "Apertura" en la
+   *  tirilla, junto a la hora de cierre (pedido del usuario). */
+  abiertoEn: Date;
   efectivoInicialCop: MontoCOP;
   /** Suma de pagos en efectivo del turno -- "cuánto dinero se hizo". */
   ventasEfectivoCop: MontoCOP;

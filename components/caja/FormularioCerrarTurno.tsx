@@ -70,22 +70,24 @@ export function FormularioCerrarTurno({
 
     // La tirilla de arqueo se arma y se imprime aquí mismo (acción local
     // del navegador, no necesita internet) solo si se conoce el efectivo
-    // inicial de este turno -- turnos abiertos antes de este campo
-    // existir no lo tienen guardado localmente (ver turnoOfflineStore.ts),
-    // y en ese caso se omite en vez de imprimir un valor inventado. El
-    // registro en `impresiones` no puede preceder a la impresión como
-    // pide CLAUDE.md §13.9 (sin conexión no hay BD alcanzable) -- viaja
-    // en el payload encolado y el manejador de sincronización lo inserta
-    // al reconectar (mismo criterio que la tirilla de cobro offline).
+    // inicial y la hora de apertura de este turno -- turnos abiertos antes
+    // de que estos campos existieran no los tienen guardados localmente
+    // (ver turnoOfflineStore.ts), y en ese caso se omite en vez de
+    // imprimir un valor inventado. El registro en `impresiones` no puede
+    // preceder a la impresión como pide CLAUDE.md §13.9 (sin conexión no
+    // hay BD alcanzable) -- viaja en el payload encolado y el manejador de
+    // sincronización lo inserta al reconectar (mismo criterio que la
+    // tirilla de cobro offline).
     let contenidoHtml: string | null = null;
     let impresionExito: boolean | null = null;
     let impresionError: string | null = null;
-    if (turno.efectivoInicialCop !== undefined) {
+    if (turno.efectivoInicialCop !== undefined && turno.abiertoEn !== undefined) {
       const efectivoInicialCop = BigInt(turno.efectivoInicialCop);
       contenidoHtml = construirTicketArqueoHtml({
         sedeNombre,
         cajeraNombre,
         fecha: ahoraBogota(),
+        abiertoEn: new Date(turno.abiertoEn),
         efectivoInicialCop,
         ventasEfectivoCop,
         ventasOtroMedioCop,

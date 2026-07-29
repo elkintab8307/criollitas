@@ -100,7 +100,7 @@ async function construirYRegistrarTicketArqueo(
   try {
     const { data: turnoFila } = await supabase
       .from("turnos_caja")
-      .select("efectivo_inicial_cop, efectivo_declarado_cop, esperado_cop, diferencia_cop")
+      .select("abierto_en, efectivo_inicial_cop, efectivo_declarado_cop, esperado_cop, diferencia_cop")
       .eq("id", turnoId)
       .single();
     if (
@@ -166,6 +166,7 @@ async function construirYRegistrarTicketArqueo(
       sedeNombre,
       cajeraNombre,
       fecha: ahoraBogota(),
+      abiertoEn: new Date(turnoFila.abierto_en),
       efectivoInicialCop: BigInt(turnoFila.efectivo_inicial_cop),
       ventasEfectivoCop,
       ventasOtroMedioCop,

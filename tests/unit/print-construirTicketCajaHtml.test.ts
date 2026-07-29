@@ -35,6 +35,7 @@ const datosArqueoBase: DatosArqueo = {
   sedeNombre: "Criollitas Armenia",
   cajeraNombre: "María Pérez",
   fecha: new Date("2026-07-21T23:10:00.000Z"),
+  abiertoEn: new Date("2026-07-21T13:05:00.000Z"),
   efectivoInicialCop: 10000000n,
   ventasEfectivoCop: 5500000n,
   ventasOtroMedioCop: 2000000n,
@@ -131,6 +132,16 @@ describe("construirTicketArqueoHtml", () => {
   it("usa el mismo ancho imprimible que la tirilla de cobro", () => {
     const html = construirTicketArqueoHtml(datosArqueoBase);
     expect(html).toContain("72mm");
+  });
+
+  it("muestra la hora de apertura y de cierre del turno, en ese orden", () => {
+    const html = construirTicketArqueoHtml(datosArqueoBase);
+    expect(html).toContain("Apertura: 21 de julio de 2026, 8:05 AM");
+    expect(html).toContain("Cierre: 21 de julio de 2026, 6:10 PM");
+    const posApertura = html.indexOf("Apertura:");
+    const posCierre = html.indexOf("Cierre:");
+    expect(posApertura).toBeGreaterThan(-1);
+    expect(posCierre).toBeGreaterThan(posApertura);
   });
 
   it("desglosa las ventas por otro medio de pago, método por método", () => {

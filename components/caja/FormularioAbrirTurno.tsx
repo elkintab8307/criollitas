@@ -76,7 +76,7 @@ export function FormularioAbrirTurno() {
       },
       creadaEn: new Date().toISOString(),
     });
-    useTurnoOfflineStore.getState().abrir({ turnoId, efectivoInicialCop });
+    useTurnoOfflineStore.getState().abrir({ turnoId, efectivoInicialCop, abiertoEn: new Date().toISOString() });
     if (!navegar) {
       setAbiertoLocalmentePendiente(true);
       return true;
@@ -120,6 +120,7 @@ export function FormularioAbrirTurno() {
     useTurnoOfflineStore.getState().abrir({
       turnoId: resultado.valor.turnoId,
       efectivoInicialCop: Number(montoDesdePesos(datos.efectivoInicialPesos)),
+      abiertoEn: new Date().toISOString(),
     });
     // Tercer momento seguro para precargar (lib/offline/precargaRutas.ts):
     // recién ahora existe un turno abierto, así que /turno/movimientos,

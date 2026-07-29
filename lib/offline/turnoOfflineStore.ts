@@ -11,6 +11,11 @@ export interface TurnoOffline {
    *  para "con cuánto se abrió la caja") en vez de imprimir un valor
    *  inventado. */
   efectivoInicialCop?: number;
+  /** Momento de apertura del turno (ISO), para mostrarlo en /mi-turno y en
+   *  la tirilla de cierre junto a la hora de cierre. Opcional por el mismo
+   *  motivo que efectivoInicialCop: turnos abiertos antes de este campo no
+   *  lo tienen guardado. */
+  abiertoEn?: string;
 }
 
 interface TurnoOfflineState {

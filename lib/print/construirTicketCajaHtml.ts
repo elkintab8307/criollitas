@@ -86,7 +86,8 @@ export function construirTicketArqueoHtml(datos: DatosArqueo): string {
   <div class="centro suave">${escaparHtml(datos.sedeNombre)}</div>
   <div class="sep"></div>
   <div class="centro">Cierre de turno — Arqueo de caja</div>
-  <div class="suave">${formatearFecha(datos.fecha)}</div>
+  <div class="suave">Apertura: ${formatearFecha(datos.abiertoEn)}</div>
+  <div class="suave">Cierre: ${formatearFecha(datos.fecha)}</div>
   <div class="suave">Cajera: ${escaparHtml(datos.cajeraNombre)}</div>
   <div class="sep"></div>
   <div class="fila"><span>Dinero con que se abrió</span><span>${formatearCOP(datos.efectivoInicialCop)}</span></div>

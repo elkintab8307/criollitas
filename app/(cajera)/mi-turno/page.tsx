@@ -4,6 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { ClayButton } from "@/components/ui/ClayButton";
 import { formatearCOP, sumar } from "@/lib/money";
 import { calcularEsperado, desglosarPagosPorMetodo } from "@/lib/caja/arqueo";
+import { formatearFecha } from "@/lib/dates";
 import { DesgloseMetodosPago } from "@/components/caja/DesgloseMetodosPago";
 
 export default async function MiTurnoPage() {
@@ -58,7 +59,8 @@ export default async function MiTurnoPage() {
     <main className="p-8">
       <h1 className="font-display text-3xl text-brand-mostaza">Mi turno</h1>
       <p className="mt-2 text-brand-crema/80">
-        Abierto con {formatearCOP(BigInt(turno.efectivo_inicial_cop))} de efectivo inicial.
+        Abierto el {formatearFecha(new Date(turno.abierto_en))} con{" "}
+        {formatearCOP(BigInt(turno.efectivo_inicial_cop))} de efectivo inicial.
       </p>
       <p className="mt-2 text-lg text-brand-crema">
         Efectivo esperado ahora: <span className="font-mono font-semibold">{formatearCOP(esperadoCop)}</span>
