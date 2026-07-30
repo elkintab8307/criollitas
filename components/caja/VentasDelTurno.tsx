@@ -23,6 +23,9 @@ export interface PedidoCobradoVista {
   pedidoId: string;
   numeroCorto: number;
   canal: string;
+  /** Número de mesa cuando canal="mesa" -- para saber en qué mesa se cobró
+   *  cada venta (pedido del usuario). Null en domicilio/llevar. */
+  mesaNumero: number | null;
   totalCop: number;
   metodos: string[];
   cobradoEn: string;
@@ -61,8 +64,10 @@ export function VentasDelTurno({ cobrados, totalVentasCop }: VentasDelTurnoProps
                     {pedido.numeroCorto > 0 ? `#${pedido.numeroCorto}` : "Sin número"}
                   </span>
                   <span className="text-sm text-text-secondary">
-                    {ETIQUETA_CANAL[pedido.canal] ?? pedido.canal} ·{" "}
-                    {pedido.metodos.map((m) => ETIQUETA_METODO[m] ?? m).join(" + ")}
+                    {pedido.canal === "mesa" && pedido.mesaNumero !== null
+                      ? `Mesa ${pedido.mesaNumero}`
+                      : (ETIQUETA_CANAL[pedido.canal] ?? pedido.canal)}{" "}
+                    · {pedido.metodos.map((m) => ETIQUETA_METODO[m] ?? m).join(" + ")}
                   </span>
                 </div>
                 <div className="flex items-baseline gap-4">

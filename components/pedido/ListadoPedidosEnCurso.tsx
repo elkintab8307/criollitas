@@ -40,14 +40,20 @@ interface ListadoPedidosEnCursoProps {
 export function ListadoPedidosEnCurso({ pedidos, variante, onCancelar }: ListadoPedidosEnCursoProps) {
   const router = useRouter();
   const [pedidoACancelar, setPedidoACancelar] = useState<PedidoVista | null>(null);
+  // Cancelar sin conexión no puede esperar un router.refresh() (no hay
+  // servidor que responder) -- se quita de la lista aquí mismo apenas se
+  // confirma la cancelación (local u online), sin depender de que la
+  // página vuelva a pedir datos frescos.
+  const [idsCancelados, setIdsCancelados] = useState<Set<string>>(new Set());
+  const pedidosVisibles = pedidos.filter((p) => !idsCancelados.has(p.id));
 
-  if (pedidos.length === 0) {
+  if (pedidosVisibles.length === 0) {
     return <p className="text-sm text-brand-crema/70">No hay pedidos de domicilio o para llevar en curso.</p>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {pedidos.map((pedido) => (
+      {pedidosVisibles.map((pedido) => (
         <ClayCard key={pedido.id} variant="flat" className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <span className="font-display text-xl font-semibold text-text-primary">
@@ -79,9 +85,14 @@ export function ListadoPedidosEnCurso({ pedidos, variante, onCancelar }: Listado
           abierto={true}
           onCerrar={() => setPedidoACancelar(null)}
           onCancelar={onCancelar}
-          onExito={() => {
+          onExito={(fueOffline) => {
+            setIdsCancelados((actuales) => new Set(actuales).add(pedidoACancelar.id));
             setPedidoACancelar(null);
-            router.refresh();
+            // Offline no hay servidor que refrescar -- la lista ya se
+            // actualizó arriba de forma optimista.
+            if (!fueOffline) {
+              router.refresh();
+            }
           }}
         />
       ) : null}

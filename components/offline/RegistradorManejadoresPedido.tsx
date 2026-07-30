@@ -2,7 +2,12 @@
 
 import { useEffect } from "react";
 import { registrarManejador } from "@/lib/offline/sync";
-import { confirmarItemsPedido, crearPedidoConItems, type OrigenPedido } from "@/app/(vendedora)/pedido/actions";
+import {
+  cancelarPedido,
+  confirmarItemsPedido,
+  crearPedidoConItems,
+  type OrigenPedido,
+} from "@/app/(vendedora)/pedido/actions";
 import { sincronizarCobroOffline } from "@/app/(cajera)/cobrar/actions";
 import { eliminarPedidoLocal } from "@/lib/offline/pedidosLocales";
 import type { EnviarPedidoInput } from "@/lib/validations/pedido";
@@ -53,6 +58,18 @@ export function RegistradorManejadoresPedido() {
           error: (payload.impresionError as string | null) ?? null,
         },
       );
+      if (!resultado.ok) return { ok: false, mensaje: resultado.error.mensaje };
+      await eliminarPedidoLocal(payload.pedidoId as string);
+      return { ok: true };
+    });
+
+    // Cancelación hecha sin conexión (mesa, domicilio o para llevar, Bloque
+    // B/C) -- mismo RPC que el camino online (cancelarPedido acepta tanto
+    // vendedora como cajera, y el propio RPC decide si es dueña del pedido
+    // o cajera de la sede cancelando uno ajeno). Igual que cobrar_pedido,
+    // la copia local ya no aporta nada tras sincronizar.
+    registrarManejador("cancelar_pedido", async (payload) => {
+      const resultado = await cancelarPedido(payload.pedidoId as string, { motivo: payload.motivo as string });
       if (!resultado.ok) return { ok: false, mensaje: resultado.error.mensaje };
       await eliminarPedidoLocal(payload.pedidoId as string);
       return { ok: true };

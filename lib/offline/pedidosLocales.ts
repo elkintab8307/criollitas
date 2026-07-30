@@ -23,6 +23,12 @@ export async function marcarPedidoLocalCobrado(pedidoId: string): Promise<void> 
   await baseDatosOffline.pedidosLocales.put({ ...pedido, estado: "cobrado" });
 }
 
+export async function marcarPedidoLocalCancelado(pedidoId: string): Promise<void> {
+  const pedido = await baseDatosOffline.pedidosLocales.get(pedidoId);
+  if (!pedido) return;
+  await baseDatosOffline.pedidosLocales.put({ ...pedido, estado: "cancelado" });
+}
+
 export async function listarPedidosLocales(): Promise<PedidoLocal[]> {
   return baseDatosOffline.pedidosLocales.toArray();
 }

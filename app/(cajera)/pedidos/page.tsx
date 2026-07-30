@@ -69,9 +69,17 @@ export default async function PedidosCajaPage() {
     }
     const pedidoIdsCobrados = [...pagosPorPedido.keys()];
     const { data: pedidosCobradosFilas } = pedidoIdsCobrados.length
-      ? await supabase.from("pedidos").select("id, numero_corto, canal").in("id", pedidoIdsCobrados)
-      : { data: [] as { id: string; numero_corto: number; canal: string }[] };
+      ? await supabase.from("pedidos").select("id, numero_corto, canal, mesa_id").in("id", pedidoIdsCobrados)
+      : { data: [] as { id: string; numero_corto: number; canal: string; mesa_id: string | null }[] };
     const infoPedidoPorId = new Map((pedidosCobradosFilas ?? []).map((p) => [p.id, p]));
+
+    const mesaIdsCobrados = [
+      ...new Set((pedidosCobradosFilas ?? []).map((p) => p.mesa_id).filter((id): id is string => !!id)),
+    ];
+    const { data: mesasCobradasFilas } = mesaIdsCobrados.length
+      ? await supabase.from("mesas").select("id, numero").in("id", mesaIdsCobrados)
+      : { data: [] as { id: string; numero: number }[] };
+    const numeroMesaCobradaPorId = new Map((mesasCobradasFilas ?? []).map((m) => [m.id, m.numero]));
 
     cobradosDelTurno = pedidoIdsCobrados.map((pedidoId) => {
       const agregado = pagosPorPedido.get(pedidoId)!;
@@ -80,6 +88,7 @@ export default async function PedidosCajaPage() {
         pedidoId,
         numeroCorto: info?.numero_corto ?? 0,
         canal: info?.canal ?? "llevar",
+        mesaNumero: info?.mesa_id ? (numeroMesaCobradaPorId.get(info.mesa_id) ?? null) : null,
         totalCop: Number(agregado.totalCop),
         metodos: [...agregado.metodos],
         cobradoEn: agregado.creadoEn,

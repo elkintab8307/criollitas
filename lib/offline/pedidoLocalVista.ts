@@ -38,7 +38,7 @@ export function construirVistaPedidoLocal(
     id: pedidoLocal.pedidoId,
     numeroCorto: 0,
     canal: pedidoLocal.origen.canal,
-    estado: pedidoLocal.estado === "cobrado" ? "cobrado" : "listo",
+    estado: pedidoLocal.estado === "cobrado" ? "cobrado" : pedidoLocal.estado === "cancelado" ? "cancelado" : "listo",
     mesaNumero,
     clienteNombre: null,
     subtotalCop: Number(subtotalCop),

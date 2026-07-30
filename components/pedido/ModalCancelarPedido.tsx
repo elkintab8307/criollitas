@@ -9,19 +9,37 @@ import { ClayInput } from "@/components/ui/ClayInput";
 import { motivoCancelacionSchema, type MotivoCancelacionInput } from "@/lib/validations/cancelacion";
 import type { CanalPedido } from "@/components/pedido/tipos";
 import type { DomainError, Result } from "@/lib/result";
+import { useConectividadStore } from "@/lib/offline/conectividadStore";
+import { marcarPedidoLocalCancelado } from "@/lib/offline/pedidosLocales";
+import { encolarOperacion } from "@/lib/offline/cola";
+import { conTimeout, ErrorTimeout, marcarRedDegradadaPorTimeout } from "@/lib/offline/conTimeout";
+
+// Ver el mismo comentario en FormularioAbrirTurno.tsx: las Server Actions
+// son POST, el Service Worker las ignora, y una red degradada las deja
+// colgadas en vez de fallar rápido. Pasados 6s se cae al camino offline.
+const TIMEOUT_CANCELAR_PEDIDO_MS = 6000;
 
 interface ModalCancelarPedidoProps {
   pedido: { id: string; numeroCorto: number; canal: CanalPedido };
   abierto: boolean;
   onCerrar: () => void;
   onCancelar: (pedidoId: string, input: MotivoCancelacionInput) => Promise<Result<null, DomainError>>;
-  onExito: () => void;
+  /** `fueOffline` distingue el camino local (encolado, aún no confirmado
+   *  por el servidor) del camino online -- quien use este modal decide con
+   *  ese dato cómo navegar después (ver CarritoPedido.tsx: una navegación
+   *  "suave" no la reconoce el Service Worker como la página cacheada). */
+  onExito: (fueOffline: boolean) => void;
 }
 
 /** Modal + formulario de motivo para cancelar un pedido (Bloque B). Extraído
  *  de CarritoPedido para reutilizarse también en los listados de pedidos en
  *  curso de vendedora y cajera (Bloque C) -- onCancelar delega la llamada al
- *  Server Action correcto según quién lo use. */
+ *  Server Action correcto según quién lo use. Funciona sin conexión (mesa,
+ *  domicilio o para llevar por igual): si no hay red, o la petición se
+ *  cuelga por una red degradada, la cancelación se guarda en la copia local
+ *  del pedido y se encola para sincronizar al reconectar -- mismo patrón que
+ *  el resto de acciones offline de este proyecto (CarritoNuevo.tsx,
+ *  FormularioCobro.tsx). */
 export function ModalCancelarPedido({ pedido, abierto, onCerrar, onCancelar, onExito }: ModalCancelarPedidoProps) {
   const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState(false);
@@ -38,17 +56,52 @@ export function ModalCancelarPedido({ pedido, abierto, onCerrar, onCancelar, onE
     onCerrar();
   }
 
+  // El registro en `pedidosLocales` no falla si el pedido no vive en este
+  // equipo (ver marcarPedidoLocalCancelado) -- pasa igual para un pedido
+  // ajeno que la cajera cancela desde /pedidos-en-curso sin haberlo creado
+  // ella misma; la operación igual se encola para sincronizar.
+  async function cancelarLocalmente(motivo: string): Promise<void> {
+    await marcarPedidoLocalCancelado(pedido.id);
+    await encolarOperacion({
+      tipo: "cancelar_pedido",
+      payload: { pedidoId: pedido.id, motivo },
+      creadaEn: new Date().toISOString(),
+    });
+  }
+
   const onSubmit = handleSubmit(async (datos) => {
     setErrorCancelar(null);
     setCancelando(true);
-    const resultado = await onCancelar(pedido.id, datos);
+
+    if (useConectividadStore.getState().estado === "offline") {
+      await cancelarLocalmente(datos.motivo);
+      setCancelando(false);
+      reset();
+      onExito(true);
+      return;
+    }
+
+    let resultado: Result<null, DomainError>;
+    try {
+      resultado = await conTimeout(onCancelar(pedido.id, datos), TIMEOUT_CANCELAR_PEDIDO_MS);
+    } catch (error) {
+      if (error instanceof ErrorTimeout) {
+        marcarRedDegradadaPorTimeout();
+        await cancelarLocalmente(datos.motivo);
+        setCancelando(false);
+        reset();
+        onExito(true);
+        return;
+      }
+      throw error;
+    }
     setCancelando(false);
     if (!resultado.ok) {
       setErrorCancelar(resultado.error.mensaje);
       return;
     }
     reset();
-    onExito();
+    onExito(false);
   });
 
   return (

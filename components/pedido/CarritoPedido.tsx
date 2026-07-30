@@ -45,7 +45,6 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, u
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalCancelarAbierto, setModalCancelarAbierto] = useState(false);
-  const offline = useConectividadStore((s) => s.estado) === "offline";
 
   const totalCarritoEnCurso = sumar(
     ...items.map((item) =>
@@ -277,15 +276,9 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, u
           >
             {enviando ? "Enviando…" : textoBoton}
           </ClayButton>
-          {offline ? (
-            <p className="text-sm text-text-secondary">
-              Cancelar un pedido no está disponible sin conexión.
-            </p>
-          ) : (
-            <ClayButton type="button" variant="destructive" onClick={() => setModalCancelarAbierto(true)}>
-              Cancelar pedido
-            </ClayButton>
-          )}
+          <ClayButton type="button" variant="destructive" onClick={() => setModalCancelarAbierto(true)}>
+            Cancelar pedido
+          </ClayButton>
         </>
       )}
 
@@ -294,9 +287,17 @@ export function CarritoPedido({ pedido, itemsConfirmados, soloLectura = false, u
         abierto={modalCancelarAbierto}
         onCerrar={() => setModalCancelarAbierto(false)}
         onCancelar={cancelarPedido}
-        onExito={() => {
+        onExito={(fueOffline) => {
           setModalCancelarAbierto(false);
-          router.push("/inicio");
+          // router.push (navegación "suave") no la reconoce el Service
+          // Worker como la misma página cacheada -- mismo motivo que
+          // FormularioCerrarTurno.tsx/FormularioAbrirTurno.tsx. /inicio ya
+          // está precargada (lib/offline/precargaRutas.ts).
+          if (fueOffline) {
+            window.location.href = "/inicio";
+          } else {
+            router.push("/inicio");
+          }
         }}
       />
     </aside>

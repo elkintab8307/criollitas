@@ -78,7 +78,7 @@ export interface PedidoLocal {
   pedidoId: string;
   origen: { canal: "mesa"; mesaId: string } | { canal: "domicilio"; clienteId: string } | { canal: "llevar" };
   items: ItemPedidoLocal[];
-  estado: "abierto" | "cobrado";
+  estado: "abierto" | "cobrado" | "cancelado";
   sedeId: string;
   vendedoraId: string;
   creadoEn: string;
