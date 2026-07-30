@@ -45,7 +45,7 @@ export default async function PedidosEnCursoCajeraPage() {
       <p className="mt-2 mb-6 text-brand-crema/80">
         Pedidos de domicilio o para llevar de toda la sede, en cualquier estado.
       </p>
-      <ListadoPedidosEnCurso pedidos={pedidos} variante="cajera" onCancelar={cancelarPedidoCajera} />
+      <ListadoPedidosEnCurso pedidos={pedidos} onCancelar={cancelarPedidoCajera} />
     </main>
   );
 }

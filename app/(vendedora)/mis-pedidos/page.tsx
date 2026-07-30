@@ -44,7 +44,7 @@ export default async function PedidosVendedoraPage() {
     <main className="p-8">
       <h1 className="font-display text-3xl text-brand-mostaza">Domicilios y para llevar</h1>
       <p className="mt-2 mb-6 text-brand-crema/80">Tus pedidos en curso de domicilio o para llevar.</p>
-      <ListadoPedidosEnCurso pedidos={pedidos} variante="vendedora" onCancelar={cancelarPedido} />
+      <ListadoPedidosEnCurso pedidos={pedidos} onCancelar={cancelarPedido} />
     </main>
   );
 }

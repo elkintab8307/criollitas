@@ -14,18 +14,22 @@ import { limitesDeHoyBogota } from "@/lib/dates";
 
 const uuidValido = (valor: string): boolean => z.uuid().safeParse(valor).success;
 
-async function exigirVendedoraOCajera(): Promise<Result<{ vendedoraId: string; sedeId: string }, DomainError>> {
+async function exigirVendedoraOCajera(): Promise<
+  Result<{ vendedoraId: string; sedeId: string; rol: "vendedora" | "cajera" }, DomainError>
+> {
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return err({ codigo: "NO_AUTORIZADO", mensaje: "Inicia sesión de nuevo" });
-  if (user.app_metadata?.rol !== "vendedora" && user.app_metadata?.rol !== "cajera") {
+  const rol = user.app_metadata?.rol as string | undefined;
+  if (rol !== "vendedora" && rol !== "cajera") {
     return err({ codigo: "NO_AUTORIZADO", mensaje: "Solo la vendedora o la cajera pueden editar este pedido" });
   }
   return ok({
     vendedoraId: user.id,
     sedeId: (user.app_metadata?.sede_id as string) ?? SEDE_DEFAULT_ID,
+    rol,
   });
 }
 
@@ -69,11 +73,21 @@ export async function confirmarItemsPedido(
 
   const { data: pedido, error: errorPedido } = await supabase
     .from("pedidos")
-    .select("id, estado")
+    .select("id, estado, vendedora_id, canal")
     .eq("id", pedidoId)
-    .eq("vendedora_id", ctx.valor.vendedoraId)
     .single();
   if (errorPedido || !pedido) {
+    return err({ codigo: "NO_ENCONTRADO", mensaje: "El pedido no existe" });
+  }
+  // La cajera puede editar (agregar productos) un pedido de domicilio o
+  // para llevar aunque no sea suya (pedido del usuario, 2026-07-30) --
+  // mesa sigue siendo exclusiva de quien lo creó. RLS ya exige lo mismo
+  // (pedido_items_cajera_editar_ajeno_insert); esta comprobación es la
+  // que decide el mensaje "no existe" antes de intentar escribir.
+  const esDueña = pedido.vendedora_id === ctx.valor.vendedoraId;
+  const puedeEditarAjeno =
+    ctx.valor.rol === "cajera" && (pedido.canal === "domicilio" || pedido.canal === "llevar");
+  if (!esDueña && !puedeEditarAjeno) {
     return err({ codigo: "NO_ENCONTRADO", mensaje: "El pedido no existe" });
   }
   if (ESTADOS_NO_MODIFICABLES.has(pedido.estado)) {

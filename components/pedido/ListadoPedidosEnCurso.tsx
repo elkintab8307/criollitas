@@ -30,14 +30,15 @@ const ETIQUETA_ESTADO: Record<EstadoPedido, string> = {
 
 interface ListadoPedidosEnCursoProps {
   pedidos: PedidoVista[];
-  variante: "vendedora" | "cajera";
   onCancelar: (pedidoId: string, input: MotivoCancelacionInput) => Promise<Result<null, DomainError>>;
 }
 
 /** Lista de pedidos de domicilio/llevar en curso, compartida entre la vista
- *  de vendedora (con link a /pedido/[id] para agregar productos) y la de
- *  cajera (solo ver + cancelar, Bloque C). */
-export function ListadoPedidosEnCurso({ pedidos, variante, onCancelar }: ListadoPedidosEnCursoProps) {
+ *  de vendedora y la de cajera. Ambas pueden ver, editar (agregar
+ *  productos) y cancelar -- desde el pedido del usuario (2026-07-30) la
+ *  cajera ya no está limitada a solo ver/cancelar los ajenos: puede
+ *  editarlos igual que los suyos (nunca mesa, solo domicilio/llevar). */
+export function ListadoPedidosEnCurso({ pedidos, onCancelar }: ListadoPedidosEnCursoProps) {
   const router = useRouter();
   const [pedidoACancelar, setPedidoACancelar] = useState<PedidoVista | null>(null);
   // Cancelar sin conexión no puede esperar un router.refresh() (no hay
@@ -67,11 +68,9 @@ export function ListadoPedidosEnCurso({ pedidos, variante, onCancelar }: Listado
           </p>
           <p className="font-mono text-lg text-text-primary">{formatearCOP(BigInt(pedido.totalCop))}</p>
           <div className="flex gap-3">
-            {variante === "vendedora" ? (
-              <ClayButton type="button" variant="secondary" onClick={() => router.push(`/pedido/${pedido.id}`)}>
-                Ver / agregar productos
-              </ClayButton>
-            ) : null}
+            <ClayButton type="button" variant="secondary" onClick={() => router.push(`/pedido/${pedido.id}`)}>
+              Ver / agregar productos
+            </ClayButton>
             <ClayButton type="button" variant="destructive" onClick={() => setPedidoACancelar(pedido)}>
               Cancelar
             </ClayButton>
