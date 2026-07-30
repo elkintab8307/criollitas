@@ -97,6 +97,7 @@ export default async function CerrarTurnoPage() {
         <BotonAbrirCaja sedeNombre={sedeNombre} cajeraNombre={cajeraNombre} />
       </div>
       <FormularioCerrarTurno
+        efectivoInicialCop={BigInt(turno.efectivo_inicial_cop)}
         esperadoCop={esperadoCop}
         ventasEfectivoCop={ventasEfectivoCop}
         ventasOtroMedioCop={ventasOtroMedioCop}

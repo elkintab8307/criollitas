@@ -28,6 +28,7 @@ import { conTimeout, ErrorTimeout, marcarRedDegradadaPorTimeout } from "@/lib/of
 const TIMEOUT_CERRAR_TURNO_MS = 6000;
 
 interface FormularioCerrarTurnoProps {
+  efectivoInicialCop: MontoCOP;
   esperadoCop: MontoCOP;
   ventasEfectivoCop: MontoCOP;
   ventasOtroMedioCop: MontoCOP;
@@ -41,6 +42,7 @@ interface FormularioCerrarTurnoProps {
 }
 
 export function FormularioCerrarTurno({
+  efectivoInicialCop,
   esperadoCop,
   ventasEfectivoCop,
   ventasOtroMedioCop,
@@ -169,9 +171,30 @@ export function FormularioCerrarTurno({
   return (
     <form onSubmit={onSubmit} className="flex max-w-sm flex-col gap-4" noValidate>
       <div className="flex flex-col gap-1 rounded-clay-md bg-surface-sunken p-3">
-        <p className="text-sm text-brand-chocolate/70">
-          Ventas en efectivo: <span className="font-mono font-semibold">{formatearCOP(ventasEfectivoCop)}</span>
+        <p className="text-sm font-medium text-text-primary">Cómo se arma el efectivo esperado:</p>
+        <p className="flex justify-between text-sm text-brand-chocolate/70">
+          <span>Efectivo inicial</span>
+          <span className="font-mono font-semibold">{formatearCOP(efectivoInicialCop)}</span>
         </p>
+        <p className="flex justify-between text-sm text-brand-chocolate/70">
+          <span>+ Ventas en efectivo</span>
+          <span className="font-mono font-semibold">{formatearCOP(ventasEfectivoCop)}</span>
+        </p>
+        <p className="flex justify-between text-sm text-brand-chocolate/70">
+          <span>− Salidas (retiros y gastos)</span>
+          <span className="font-mono font-semibold text-brand-tomate-2">-{formatearCOP(salidasCop)}</span>
+        </p>
+        <p className="flex justify-between text-sm text-brand-chocolate/70">
+          <span>+ Entradas extra</span>
+          <span className="font-mono font-semibold text-brand-verde-2">{formatearCOP(entradasExtraCop)}</span>
+        </p>
+        <div className="my-1 border-t border-(--border-soft)" />
+        <p className="flex justify-between text-base font-semibold text-text-primary">
+          <span>= Efectivo esperado</span>
+          <span className="font-mono">{formatearCOP(esperadoCop)}</span>
+        </p>
+      </div>
+      <div className="flex flex-col gap-1 rounded-clay-md bg-surface-sunken p-3">
         <p className="text-sm text-brand-chocolate/70">
           Ventas por otro medio (Nequi, datáfono, etc.):{" "}
           <span className="font-mono font-semibold">{formatearCOP(ventasOtroMedioCop)}</span>
@@ -181,9 +204,6 @@ export function FormularioCerrarTurno({
           El cuadre de caja es solo con el efectivo -- los otros medios son pagos virtuales.
         </p>
       </div>
-      <p className="text-sm text-brand-chocolate/70">
-        Efectivo esperado: <span className="font-mono font-semibold">{formatearCOP(esperadoCop)}</span>
-      </p>
       <ClayInput
         label="Efectivo contado (pesos)"
         type="number"
