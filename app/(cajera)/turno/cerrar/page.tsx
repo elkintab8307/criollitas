@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { FormularioCerrarTurno } from "@/components/caja/FormularioCerrarTurno";
 import { BotonAbrirCaja } from "@/components/caja/BotonAbrirCaja";
+import { SincronizarTurnoLocal } from "@/components/offline/SincronizarTurnoLocal";
 import { agruparProductosVendidos, calcularEsperado, desglosarPagosPorMetodo } from "@/lib/caja/arqueo";
 import { sumar } from "@/lib/money";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
@@ -18,7 +19,7 @@ export default async function CerrarTurnoPage() {
 
   const { data: turno } = await supabase
     .from("turnos_caja")
-    .select("id, efectivo_inicial_cop")
+    .select("id, abierto_en, efectivo_inicial_cop")
     .eq("cajera_id", user.id)
     .eq("estado", "abierto")
     .maybeSingle();
@@ -91,6 +92,11 @@ export default async function CerrarTurnoPage() {
 
   return (
     <main className="p-8">
+      <SincronizarTurnoLocal
+        turnoId={turno.id}
+        efectivoInicialCop={turno.efectivo_inicial_cop}
+        abiertoEn={turno.abierto_en}
+      />
       <h1 className="font-display text-3xl text-brand-mostaza">Cerrar turno</h1>
       <p className="mt-2 mb-6 text-brand-crema/80">Cuenta el efectivo en caja y declara el total.</p>
       <div className="mb-6">

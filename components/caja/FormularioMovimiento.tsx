@@ -37,6 +37,12 @@ interface FormularioMovimientoProps {
 export function FormularioMovimiento({ sedeNombre, cajeraNombre }: FormularioMovimientoProps) {
   const router = useRouter();
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
+  // Sin esto, guardar un movimiento sin conexión no dejaba ninguna señal en
+  // pantalla (el formulario solo se vaciaba en silencio) -- la única pista
+  // de que algo pasó era la ventana de impresión, fácil de perder si el
+  // navegador la bloquea. La cajera no tenía forma de saber si de verdad
+  // quedó guardado (bug real reportado por el usuario).
+  const [confirmacionOffline, setConfirmacionOffline] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -78,12 +84,18 @@ export function FormularioMovimiento({ sedeNombre, cajeraNombre }: FormularioMov
       },
       creadaEn: new Date().toISOString(),
     });
+    setConfirmacionOffline(
+      resultadoImpresion.exito
+        ? "Movimiento guardado en este equipo. Se sincronizará cuando vuelva la conexión."
+        : "Movimiento guardado en este equipo (no se pudo abrir la ventana de impresión). Se sincronizará cuando vuelva la conexión.",
+    );
     reset();
     return true;
   }
 
   const onSubmit = handleSubmit(async (datos) => {
     setErrorGeneral(null);
+    setConfirmacionOffline(null);
 
     if (useConectividadStore.getState().estado === "offline") {
       await registrarLocalmente(datos);
@@ -148,6 +160,11 @@ export function FormularioMovimiento({ sedeNombre, cajeraNombre }: FormularioMov
       {errorGeneral ? (
         <p role="alert" className="text-sm text-brand-tomate-2">
           {errorGeneral}
+        </p>
+      ) : null}
+      {confirmacionOffline ? (
+        <p role="status" className="rounded-clay-md bg-brand-verde/20 p-3 text-sm text-text-primary">
+          {confirmacionOffline}
         </p>
       ) : null}
       <ClayButton type="submit" variant="primary" disabled={isSubmitting}>

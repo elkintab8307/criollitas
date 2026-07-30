@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ColaCobro } from "@/components/caja/ColaCobro";
+import { SincronizarTurnoLocal } from "@/components/offline/SincronizarTurnoLocal";
 import { VentasDelTurno, type PedidoCobradoVista } from "@/components/caja/VentasDelTurno";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { calcularEsperado } from "@/lib/caja/arqueo";
@@ -23,7 +24,7 @@ export default async function PedidosCajaPage() {
   // que /mi-turno (lib/caja/arqueo.ts, misma fórmula que el RPC cerrar_turno).
   const { data: turno } = await supabase
     .from("turnos_caja")
-    .select("id, efectivo_inicial_cop")
+    .select("id, abierto_en, efectivo_inicial_cop")
     .eq("cajera_id", user.id)
     .eq("estado", "abierto")
     .maybeSingle();
@@ -127,6 +128,13 @@ export default async function PedidosCajaPage() {
 
   return (
     <main className="p-8">
+      {turno ? (
+        <SincronizarTurnoLocal
+          turnoId={turno.id}
+          efectivoInicialCop={turno.efectivo_inicial_cop}
+          abiertoEn={turno.abierto_en}
+        />
+      ) : null}
       <div className="flex items-center justify-between">
         <h1 className="font-display text-3xl text-brand-mostaza">Pedidos por cobrar</h1>
         {esperadoCop !== null ? (

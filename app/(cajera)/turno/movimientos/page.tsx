@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { FormularioMovimiento } from "@/components/caja/FormularioMovimiento";
 import { ListaMovimientos } from "@/components/caja/ListaMovimientos";
+import { SincronizarTurnoLocal } from "@/components/offline/SincronizarTurnoLocal";
 import { formatearCOP, sumar } from "@/lib/money";
 import { calcularEsperado } from "@/lib/caja/arqueo";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
@@ -18,7 +19,7 @@ export default async function MovimientosPage() {
 
   const { data: turno } = await supabase
     .from("turnos_caja")
-    .select("id, efectivo_inicial_cop")
+    .select("id, abierto_en, efectivo_inicial_cop")
     .eq("cajera_id", user.id)
     .eq("estado", "abierto")
     .maybeSingle();
@@ -54,6 +55,11 @@ export default async function MovimientosPage() {
 
   return (
     <main className="p-8">
+      <SincronizarTurnoLocal
+        turnoId={turno.id}
+        efectivoInicialCop={turno.efectivo_inicial_cop}
+        abiertoEn={turno.abierto_en}
+      />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="font-display text-3xl text-brand-mostaza">Movimientos de caja</h1>
         <div className="text-right">
