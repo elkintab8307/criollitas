@@ -30,8 +30,11 @@ export default async function CajeraLayout({ children }: { children: React.React
     <div className="min-h-dvh bg-brand-chocolate">
       <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 bg-brand-chocolate px-8 py-4">
         {/* Enlace al logo -> /pedidos: reemplaza al antiguo enlace "Caja"
-            (retirado del menú a pedido del usuario, junto con "Domicilios
-            y para llevar"). */}
+            (retirado del menú a pedido del usuario). "Domicilios y llevar"
+            también se había retirado con el mismo criterio, pero volvió
+            (pedido del usuario, 2026-07-30): sin un enlace en el menú no
+            había forma de llegar a /pedidos-en-curso para editar (agregar
+            productos a) un pedido ajeno de esos canales. */}
         <Link
           href="/pedidos"
           aria-label="Ir a la caja"
@@ -47,6 +50,12 @@ export default async function CajeraLayout({ children }: { children: React.React
                 className="font-display text-sm text-brand-crema/70 transition-colors duration-150 hover:text-brand-crema focus-visible:outline-3 focus-visible:outline-brand-mostaza focus-visible:outline-offset-2"
               >
                 Tomar pedido
+              </Link>
+              <Link
+                href="/pedidos-en-curso"
+                className="font-display text-sm text-brand-crema/70 transition-colors duration-150 hover:text-brand-crema focus-visible:outline-3 focus-visible:outline-brand-mostaza focus-visible:outline-offset-2"
+              >
+                Domicilios y llevar
               </Link>
               <Link
                 href="/mi-turno"
