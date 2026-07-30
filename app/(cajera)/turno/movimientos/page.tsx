@@ -1,17 +1,10 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { FormularioMovimiento } from "@/components/caja/FormularioMovimiento";
-import { ClayBadge } from "@/components/ui/ClayBadge";
+import { ListaMovimientos } from "@/components/caja/ListaMovimientos";
 import { formatearCOP, sumar } from "@/lib/money";
-import { formatearHora } from "@/lib/dates";
 import { calcularEsperado } from "@/lib/caja/arqueo";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
-
-const ETIQUETA_TIPO: Record<string, string> = {
-  retiro: "Retiro",
-  gasto: "Gasto",
-  ingreso_extra: "Ingreso extra",
-};
 
 export default async function MovimientosPage() {
   const supabase = await createServerSupabase();
@@ -76,34 +69,15 @@ export default async function MovimientosPage() {
       </div>
       <div className="mt-6 grid gap-8 md:grid-cols-2">
         <FormularioMovimiento sedeNombre={sedeNombre} cajeraNombre={cajeraNombre} />
-        <div className="flex flex-col gap-2">
-          {(movimientos ?? []).length === 0 ? (
-            <p className="text-sm text-text-secondary">Sin movimientos en este turno todavía.</p>
-          ) : null}
-          {(movimientos ?? []).map((m) => {
-            const esEntrada = m.tipo === "ingreso_extra";
-            return (
-              <div
-                key={m.id}
-                className="flex items-center justify-between gap-3 rounded-clay-md bg-brand-crema-2 p-3 text-sm text-brand-chocolate"
-              >
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
-                    <ClayBadge variant={esEntrada ? "exito" : "peligro"}>
-                      {ETIQUETA_TIPO[m.tipo] ?? m.tipo}
-                    </ClayBadge>
-                    <span className="text-xs text-brand-chocolate/60">{formatearHora(new Date(m.creado_en))}</span>
-                  </div>
-                  <p className="font-medium">{m.concepto}</p>
-                </div>
-                <p className={`font-mono font-semibold ${esEntrada ? "text-brand-verde-2" : "text-brand-tomate-2"}`}>
-                  {esEntrada ? "+" : "-"}
-                  {formatearCOP(BigInt(m.monto_cop))}
-                </p>
-              </div>
-            );
-          })}
-        </div>
+        <ListaMovimientos
+          movimientos={(movimientos ?? []).map((m) => ({
+            id: m.id,
+            tipo: m.tipo,
+            concepto: m.concepto,
+            montoCop: m.monto_cop,
+            creadoEn: m.creado_en,
+          }))}
+        />
       </div>
     </main>
   );

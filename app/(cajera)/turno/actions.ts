@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { z } from "zod";
 
 import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -303,6 +304,83 @@ export async function registrarMovimiento(
   revalidatePath("/mi-turno");
   revalidatePath("/turno/movimientos");
   return ok({ impresion });
+}
+
+const uuidValido = (valor: string): boolean => z.uuid().safeParse(valor).success;
+
+/** Edita un movimiento de caja ya registrado -- solo mientras el turno
+ *  sigue abierto (decisión del usuario, 2026-07-29): una vez cerrado, esos
+ *  números ya quedaron cuadrados en el arqueo y editarlos los dejaría
+ *  desactualizados frente a sus propios datos. El RLS (movimientos_caja_
+ *  cajera_update) es quien realmente exige turno abierto y dueño; aquí solo
+ *  se valida forma, no se duplica esa regla en TypeScript. */
+export async function editarMovimiento(
+  movimientoId: string,
+  input: unknown,
+): Promise<Result<null, DomainError>> {
+  const ctx = await exigirCajera();
+  if (!ctx.ok) return ctx;
+  if (!uuidValido(movimientoId)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador de movimiento inválido" });
+  }
+  const parsed = movimientoSchema.safeParse(input);
+  if (!parsed.success) {
+    return err({ codigo: "VALIDACION", mensaje: parsed.error.issues[0]?.message ?? "Datos inválidos" });
+  }
+  const supabase = await createServerSupabase();
+
+  const { data, error } = await supabase
+    .from("movimientos_caja")
+    .update({
+      tipo: parsed.data.tipo,
+      concepto: parsed.data.concepto,
+      monto_cop: Number(montoDesdePesos(parsed.data.montoPesos)),
+    })
+    .eq("id", movimientoId)
+    .select("id");
+  if (error) {
+    return err({ codigo: "BASE_DATOS", mensaje: "No pudimos editar el movimiento. Intenta de nuevo." });
+  }
+  if (!data || data.length === 0) {
+    return err({
+      codigo: "VALIDACION",
+      mensaje: "Ese movimiento ya no se puede editar -- el turno al que pertenece está cerrado.",
+    });
+  }
+
+  revalidatePath("/mi-turno");
+  revalidatePath("/turno/movimientos");
+  return ok(null);
+}
+
+/** Elimina un movimiento de caja -- mismo límite que editarMovimiento
+ *  (solo con el turno abierto). */
+export async function eliminarMovimiento(movimientoId: string): Promise<Result<null, DomainError>> {
+  const ctx = await exigirCajera();
+  if (!ctx.ok) return ctx;
+  if (!uuidValido(movimientoId)) {
+    return err({ codigo: "VALIDACION", mensaje: "Identificador de movimiento inválido" });
+  }
+  const supabase = await createServerSupabase();
+
+  const { data, error } = await supabase
+    .from("movimientos_caja")
+    .delete()
+    .eq("id", movimientoId)
+    .select("id");
+  if (error) {
+    return err({ codigo: "BASE_DATOS", mensaje: "No pudimos eliminar el movimiento. Intenta de nuevo." });
+  }
+  if (!data || data.length === 0) {
+    return err({
+      codigo: "VALIDACION",
+      mensaje: "Ese movimiento ya no se puede eliminar -- el turno al que pertenece está cerrado.",
+    });
+  }
+
+  revalidatePath("/mi-turno");
+  revalidatePath("/turno/movimientos");
+  return ok(null);
 }
 
 export async function cerrarTurno(
