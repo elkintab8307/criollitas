@@ -8,6 +8,7 @@ import { err, ok, type DomainError, type Result } from "@/lib/result";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { montoDesdePesos, sumar } from "@/lib/money";
 import { agruparProductosVendidos, desglosarPagosPorMetodo } from "@/lib/caja/arqueo";
+import { buscarArqueoReimprimible } from "@/lib/caja/reimpresionArqueo";
 import { efectivoInicialSchema, movimientoSchema, cierreTurnoSchema } from "@/lib/validations/turno";
 import { SEDE_DEFAULT_ID } from "@/lib/auth/roles";
 import { ahoraBogota } from "@/lib/dates";
@@ -410,5 +411,35 @@ export async function cerrarTurno(
   const cookieStore = await cookies();
   cookieStore.delete("turno_abierto");
   revalidatePath("/mi-turno");
+  revalidatePath("/turno/abrir");
   return ok({ impresion });
+}
+
+/** Trae el HTML guardado de la tirilla de arqueo del último turno que esta
+ *  cajera cerró dentro de la ventana reciente, para sacar varias copias
+ *  (pedido del usuario). Mismo patrón que prepararReimpresionPorPedido en
+ *  cobrar/actions.ts: necesita conexión (el HTML vive en `impresiones`) y
+ *  NO crea una fila nueva -- reusa la del cierre y el llamador vuelve a
+ *  reportar el resultado de impresión. La búsqueda vive en
+ *  lib/caja/reimpresionArqueo.ts, compartida con /turno/abrir (que la usa
+ *  para decidir si muestra el botón). */
+export async function prepararReimpresionArqueo(): Promise<Result<DatosImpresionCliente, DomainError>> {
+  const ctx = await exigirCajera();
+  if (!ctx.ok) return ctx;
+  const supabase = await createServerSupabase();
+
+  const arqueo = await buscarArqueoReimprimible(supabase, ctx.valor.cajeraId);
+  switch (arqueo.estado) {
+    case "sin_cierre":
+      return err({ codigo: "NO_ENCONTRADO", mensaje: "No hay un cierre de turno reciente para reimprimir" });
+    case "sin_tirilla":
+      return err({ codigo: "NO_ENCONTRADO", mensaje: "Ese cierre no tiene una tirilla guardada" });
+    case "formato_viejo":
+      return err({
+        codigo: "VALIDACION",
+        mensaje: "Esta impresión es de un formato anterior y no se puede reimprimir automáticamente",
+      });
+    case "ok":
+      return ok({ impresionId: arqueo.impresionId, html: arqueo.html });
+  }
 }
